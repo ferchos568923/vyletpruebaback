@@ -1,0 +1,13 @@
+import { Router } from 'express';
+import * as pub from '../controllers/publicidad.controller.js';
+import { authenticate, requirePermiso } from '../middlewares/auth.js';
+
+const router = Router();
+
+router.get('/publicidad', pub.listPublic);
+router.get('/admin/publicidad', authenticate, requirePermiso('publicidad:ver'), pub.adminList);
+router.post('/admin/publicidad', authenticate, requirePermiso('publicidad:editar'), pub.adminCreate);
+router.patch('/admin/publicidad/:publicidadId', authenticate, requirePermiso('publicidad:editar'), pub.adminUpdate);
+router.delete('/admin/publicidad/:publicidadId', authenticate, requirePermiso('publicidad:editar'), pub.adminRemove);
+
+export default router;

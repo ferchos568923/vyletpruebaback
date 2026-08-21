@@ -1,0 +1,14 @@
+import { Router } from 'express';
+import * as rolController from '../controllers/rol.controller.js';
+import { authenticate, requirePermiso } from '../middlewares/auth.js';
+
+const router = Router();
+
+router.get('/', authenticate, requirePermiso('roles:listar'), rolController.listRoles);
+router.post('/', authenticate, requirePermiso('permisos:asignar'), rolController.createRole);
+router.get('/permisos', authenticate, requirePermiso('roles:listar'), rolController.listPermisos);
+router.patch('/:id', authenticate, requirePermiso('permisos:asignar'), rolController.updateRole);
+router.patch('/:id/permisos', authenticate, requirePermiso('permisos:asignar'), rolController.assignPermisos);
+router.delete('/:id', authenticate, requirePermiso('permisos:asignar'), rolController.removeRole);
+
+export default router;

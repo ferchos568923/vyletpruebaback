@@ -1,0 +1,10 @@
+import { Router } from 'express';
+import * as visitaController from '../controllers/visita.controller.js';
+import { authenticate, authenticateOpcional } from '../middlewares/auth.js';
+const router = Router();
+router.get('/sucursales/:id/reservas-visita', authenticateOpcional, visitaController.disponibilidad);
+router.post('/sucursales/:id/reservas-visita', authenticate, visitaController.crearReservaVisita);
+router.get('/sucursales/:id/reservas-visita/listado', authenticate, visitaController.listarReservasVisita);
+router.patch('/sucursales/:id/reservas-visita/:reservaId', authenticate, visitaController.actualizarEstadoVisita);
+router.get('/usuarios/mis-reservas-visita', authenticate, visitaController.misReservasVisita);
+export default router;

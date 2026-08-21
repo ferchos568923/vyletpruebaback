@@ -1,0 +1,15 @@
+import { Router } from 'express';
+import * as reserva from '../controllers/reserva.controller.js';
+import { authenticate } from '../middlewares/auth.js';
+
+const router = Router();
+
+router.post('/sucursales/:id/reservas', authenticate, reserva.crearReserva);
+router.post('/sucursales/:id/reservas/manual', authenticate, reserva.crearReservaManual);
+router.get('/mis-reservas', authenticate, reserva.misReservas);
+router.get('/empresas/:id/reservas', authenticate, reserva.listarReservasEmpresa);
+router.patch('/empresas/:id/reservas/:reservaId', authenticate, reserva.actualizarEstadoReserva);
+router.get('/sucursales/:id/reservas', authenticate, reserva.listarReservasSucursal);
+router.patch('/sucursales/:id/reservas/:reservaId', authenticate, reserva.actualizarEstadoReservaSucursal);
+
+export default router;

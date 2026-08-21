@@ -1,0 +1,14 @@
+import { Router } from 'express';
+import * as empleadoController from '../controllers/empleado.controller.js';
+import { authenticate, requirePermiso } from '../middlewares/auth.js';
+const router = Router();
+router.get('/cargos-empresa', empleadoController.listCargos);
+router.get('/empresas/:id/empleados', authenticate, requirePermiso('empresas:ver'), empleadoController.list);
+router.get('/empresas/:id/empleados/buscar', authenticate, requirePermiso('empresas:ver'), empleadoController.buscar);
+router.post('/empresas/:id/empleados', authenticate, requirePermiso('empresas:editar'), empleadoController.agregar);
+router.delete('/empresas/:id/empleados/:empleadoId', authenticate, requirePermiso('empresas:editar'), empleadoController.quitar);
+router.get('/empresas/:id/empleados/:empleadoId/permisos', authenticate, requirePermiso('empresas:ver'), empleadoController.listarPermisosEmpleado);
+router.put('/empresas/:id/empleados/:empleadoId/permisos', authenticate, requirePermiso('empresas:editar'), empleadoController.asignarPermisosEmpleado);
+router.get('/empresas/:id/empleados/:empleadoId/sucursales', authenticate, requirePermiso('empresas:ver'), empleadoController.listarSucursalesEmpleado);
+router.put('/empresas/:id/empleados/:empleadoId/sucursales', authenticate, requirePermiso('empresas:editar'), empleadoController.asignarSucursalesEmpleado);
+export default router;

@@ -1,0 +1,11 @@
+import { Router } from 'express';
+import * as catalogoController from '../controllers/catalogo.controller.js';
+const router = Router();
+router.get('/categorias-negocio', catalogoController.listCategorias);
+router.get('/ciudades', catalogoController.listCiudades);
+router.get('/etiquetas', catalogoController.listEtiquetas);
+router.get('/categorias-producto', catalogoController.listCategoriasProducto);
+router.get('/categorias-evento', catalogoController.listCategoriasEvento);
+router.get('/servicios', catalogoController.listServicios);
+router.get('/tipos-interes', catalogoController.listTiposInteres);
+export default router;
