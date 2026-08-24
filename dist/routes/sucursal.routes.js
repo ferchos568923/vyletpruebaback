@@ -11,5 +11,6 @@ router.get('/sucursales/:id', authenticateOpcional, sucursalController.getById);
 router.post('/empresas/:empresaId/sucursales', authenticate, requirePermiso('sucursales:crear'), sucursalController.create);
 router.patch('/sucursales/:id', authenticate, requireSucursalAcceso('sucursales:editar'), sucursalController.update);
 router.put('/sucursales/:id/servicios', authenticate, requireSucursalAcceso('sucursales:editar'), sucursalController.setServicios);
+router.put('/sucursales/:id/imagenes', authenticate, requireSucursalAcceso('sucursales:editar'), sucursalController.setImagenes);
 router.delete('/sucursales/:id', authenticate, requirePermiso('sucursales:eliminar'), sucursalController.remove);
 export default router;

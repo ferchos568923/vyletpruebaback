@@ -25,6 +25,26 @@ export const listarTuristicas = async (req: Request, res: Response) => {
   }
 };
 
+// GET /api/sucursales/publicas  (público: todas las sucursales activas)
+export const listarPublicas = async (req: Request, res: Response) => {
+  try {
+    const sucursales = await prisma.sucursales.findMany({
+      where: { activo: true, empresas: { activo: true } },
+      orderBy: { fecha_creacion: 'desc' },
+      include: {
+        ciudades: { select: { id: true, nombre: true } },
+        empresas: { select: { id: true, nombre: true, logo: true, verificado: true, destacado: true } },
+        categorias_negocio: { select: { id: true, nombre: true } },
+        _count: { select: { resenas: true } }
+      }
+    });
+    res.json(sucursales);
+  } catch (error) {
+    console.error('Error listando sucursales públicas:', error);
+    res.status(500).json({ error: 'Error al listar sucursales' });
+  }
+};
+
 // GET /api/empresas/:empresaId/sucursales  (público)
 export const listByEmpresa = async (req: Request, res: Response) => {
   try {

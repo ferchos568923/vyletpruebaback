@@ -71,7 +71,6 @@ model ciudades {
   es_turistica     Boolean?                  @default(false)
   activo           Boolean?                  @default(true)
   fecha_creacion   DateTime?                 @default(now()) @db.Timestamp(6)
-  ubicacion        Unsupported("geography")?
   provincias       provincias                @relation(fields: [provincia_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_ciudades_provincia")
   eventos          eventos[]
   sucursales       sucursales[]
@@ -200,13 +199,10 @@ model eventos {
   activo              Boolean?                  @default(true)
   fecha_creacion      DateTime?                 @default(now()) @db.Timestamp(6)
   categoria_evento_id Int?
-  ubicacion           Unsupported("geography")?
   evento_imagenes     evento_imagenes[]
   categorias_evento   categorias_evento?        @relation(fields: [categoria_evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_evento_categoria")
   ciudades            ciudades                  @relation(fields: [ciudad_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_evento_ciudad")
   plan_viaje_eventos  plan_viaje_eventos[]
-
-  @@index([ubicacion], map: "idx_eventos_ubicacion", type: Gist)
 }
 
 model favoritos {
@@ -561,7 +557,6 @@ model sucursales {
   gratuito                Boolean?                  @default(false)
   activo                  Boolean?                  @default(true)
   fecha_creacion          DateTime?                 @default(now()) @db.Timestamp(6)
-  ubicacion               Unsupported("geography")?
   cupones                 cupones[]
   disponibilidad_sucursal disponibilidad_sucursal[]
   empleado_sucursales     empleado_sucursales[]
@@ -581,8 +576,6 @@ model sucursales {
   visitas_sucursal        visitas_sucursal[]
   reservas_visita         reservas_visita[]
   plan_viaje_sucursales   plan_viaje_sucursales[]
-
-  @@index([ubicacion], map: "idx_sucursales_ubicacion", type: Gist)
 }
 
 model reservas_visita {

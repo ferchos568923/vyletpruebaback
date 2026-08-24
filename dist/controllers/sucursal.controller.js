@@ -97,7 +97,8 @@ export const getById = async (req, res) => {
             include: {
                 empresas: { include: { categorias_negocio: true } },
                 ciudades: true,
-                sucursal_servicios: { include: { servicios: true } }
+                sucursal_servicios: { include: { servicios: true } },
+                sucursal_imagenes: { orderBy: { orden: 'asc' } }
             }
         });
         if (!sucursal)
@@ -228,6 +229,40 @@ export const setServicios = async (req, res) => {
     catch (error) {
         console.error('Error asignando servicios:', error);
         res.status(500).json({ error: 'Error al asignar servicios' });
+    }
+};
+// PUT /api/sucursales/:id/imagenes  (reemplaza la galería; máximo 5 imágenes)
+export const setImagenes = async (req, res) => {
+    try {
+        const sucursal = req.sucursal ?? (await prisma.sucursales.findUnique({ where: { id: Number(req.params.id) } }));
+        if (!sucursal)
+            return res.status(404).json({ error: 'Sucursal no encontrada' });
+        if (!(await canGestionarSucursal(req, sucursal))) {
+            return res.status(403).json({ error: 'No puedes gestionar esta sucursal' });
+        }
+        const { imagenes } = req.body ?? {};
+        const urls = Array.isArray(imagenes)
+            ? [...new Set(imagenes.map((v) => String(v).trim()).filter((s) => s.length > 0))]
+            : [];
+        if (urls.length > 5) {
+            return res.status(400).json({ error: 'Máximo 5 imágenes por sucursal' });
+        }
+        await prisma.$transaction([
+            prisma.sucursal_imagenes.deleteMany({ where: { sucursal_id: sucursal.id } }),
+            prisma.sucursal_imagenes.createMany({
+                data: urls.map((imagen, i) => ({
+                    sucursal_id: sucursal.id,
+                    imagen,
+                    principal: i === 0,
+                    orden: i + 1
+                }))
+            })
+        ]);
+        res.json({ message: 'Galería de imágenes actualizada', imagenes: urls.length });
+    }
+    catch (error) {
+        console.error('Error actualizando imágenes de la sucursal:', error);
+        res.status(500).json({ error: 'Error al actualizar imágenes de la sucursal' });
     }
 };
 // DELETE /api/sucursales/:id  (requiere permiso sucursales:eliminar; los empleados no eliminan sucursales)

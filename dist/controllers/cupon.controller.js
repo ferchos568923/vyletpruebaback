@@ -1,6 +1,7 @@
 import { prisma } from '../services/prisma.js';
 import { canGestionarSucursal, isStaff } from '../middlewares/auth.js';
 import { permiteCupones } from '../services/planes.service.js';
+import { estadoAbierto } from '../services/horario.service.js';
 const parseFecha = (v) => (v === undefined || v === null || v === '' ? undefined : new Date(String(v)));
 const parseNum = (v) => {
     if (v === undefined)
@@ -11,7 +12,7 @@ const parseNum = (v) => {
 };
 const buildData = (body) => {
     const data = {};
-    const campos = ['titulo', 'descripcion', 'codigo', 'tipo_descuento'];
+    const campos = ['titulo', 'descripcion', 'imagen', 'codigo', 'tipo_descuento'];
     for (const c of campos)
         if (body[c] !== undefined)
             data[c] = body[c];
@@ -174,6 +175,14 @@ export const canjear = async (req, res) => {
         const cupon = await prisma.cupones.findUnique({ where: { id: cuponId } });
         if (!cupon || !cupon.activo)
             return res.status(404).json({ error: 'Cupón no encontrado' });
+        if (cupon.sucursal_id) {
+            const sucursalCupon = await prisma.sucursales.findUnique({ where: { id: cupon.sucursal_id }, select: { horario: true, activo: true } });
+            if (!sucursalCupon || !sucursalCupon.activo)
+                return res.status(404).json({ error: 'Sucursal no encontrada' });
+            if (estadoAbierto(sucursalCupon.horario) === 'cerrado') {
+                return res.status(409).json({ error: 'Este negocio está cerrado en este momento. Podrás canjear cuando esté abierto.' });
+            }
+        }
         const hoy = new Date();
         if (cupon.fecha_inicio && new Date(cupon.fecha_inicio) > hoy) {
             return res.status(400).json({ error: 'Este cupón aún no está vigente' });

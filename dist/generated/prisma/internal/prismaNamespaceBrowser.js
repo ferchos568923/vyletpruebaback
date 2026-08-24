@@ -90,6 +90,10 @@ export const ModelName = {
     tokens_verificacion: 'tokens_verificacion',
     usuario_roles: 'usuario_roles',
     usuarios: 'usuarios',
+    planes_viaje: 'planes_viaje',
+    plan_viaje_sucursales: 'plan_viaje_sucursales',
+    plan_viaje_amigos: 'plan_viaje_amigos',
+    plan_viaje_eventos: 'plan_viaje_eventos',
     visitas_sucursal: 'visitas_sucursal',
     cargos_empresa: 'cargos_empresa',
     empleado_permisos: 'empleado_permisos',
@@ -193,6 +197,7 @@ export const CuponesScalarFieldEnum = {
     sucursal_id: 'sucursal_id',
     titulo: 'titulo',
     descripcion: 'descripcion',
+    imagen: 'imagen',
     codigo: 'codigo',
     tipo_descuento: 'tipo_descuento',
     valor_descuento: 'valor_descuento',
@@ -601,6 +606,37 @@ export const UsuariosScalarFieldEnum = {
     fecha_creacion: 'fecha_creacion',
     ultimo_acceso: 'ultimo_acceso',
     rol_id: 'rol_id'
+};
+export const Planes_viajeScalarFieldEnum = {
+    id: 'id',
+    usuario_id: 'usuario_id',
+    nombre: 'nombre',
+    tipo: 'tipo',
+    cantidad_personas: 'cantidad_personas',
+    imagen: 'imagen',
+    ciudad_id: 'ciudad_id',
+    descripcion: 'descripcion',
+    publico: 'publico',
+    codigo: 'codigo',
+    fecha_creacion: 'fecha_creacion'
+};
+export const Plan_viaje_sucursalesScalarFieldEnum = {
+    id: 'id',
+    plan_id: 'plan_id',
+    sucursal_id: 'sucursal_id',
+    fecha_creacion: 'fecha_creacion'
+};
+export const Plan_viaje_amigosScalarFieldEnum = {
+    id: 'id',
+    plan_id: 'plan_id',
+    usuario_id: 'usuario_id',
+    fecha_creacion: 'fecha_creacion'
+};
+export const Plan_viaje_eventosScalarFieldEnum = {
+    id: 'id',
+    plan_id: 'plan_id',
+    evento_id: 'evento_id',
+    fecha_creacion: 'fecha_creacion'
 };
 export const Visitas_sucursalScalarFieldEnum = {
     id: 'id',

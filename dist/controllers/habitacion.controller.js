@@ -1,6 +1,7 @@
 import { prisma } from '../services/prisma.js';
 import { canGestionarSucursal } from '../middlewares/auth.js';
 import { permiteReservas } from '../services/planes.service.js';
+import { estadoAbierto } from '../services/horario.service.js';
 const estadosValidos = ['pendiente', 'confirmada', 'cancelada', 'completada'];
 const estadosOcupan = { notIn: ['cancelada'] };
 const usuarioSelect = {
@@ -233,11 +234,14 @@ export const crearReservaHabitacion = async (req, res) => {
             return res.status(404).json({ error: 'Habitación no encontrada' });
         if (!(await esHospedaje(h.sucursal_id)))
             return res.status(404).json({ error: 'Habitaciones no disponibles para este negocio' });
-        const sucursalHab = await prisma.sucursales.findUnique({ where: { id: h.sucursal_id }, select: { empresa_id: true } });
+        const sucursalHab = await prisma.sucursales.findUnique({ where: { id: h.sucursal_id }, select: { empresa_id: true, horario: true } });
         if (!sucursalHab)
             return res.status(404).json({ error: 'Sucursal no encontrada' });
         if (!(await permiteReservas(sucursalHab.empresa_id))) {
             return res.status(403).json({ error: 'Las reservas solo están disponibles en el plan Premium o superior. Actualiza tu plan.' });
+        }
+        if (estadoAbierto(sucursalHab.horario) === 'cerrado') {
+            return res.status(409).json({ error: 'Este negocio está cerrado en este momento. Podrás reservar cuando esté abierto.' });
         }
         const { fecha_entrada, fecha_salida, personas, cantidad } = req.body ?? {};
         if (!fecha_entrada || !fecha_salida) {
@@ -304,6 +308,9 @@ export const crearReservaHabitacionMulti = async (req, res) => {
             return res.status(404).json({ error: 'Habitaciones no disponibles para este negocio' });
         if (!(await permiteReservas(sucursal.empresa_id))) {
             return res.status(403).json({ error: 'Las reservas solo están disponibles en el plan Premium o superior. Actualiza tu plan.' });
+        }
+        if (estadoAbierto(sucursal.horario) === 'cerrado') {
+            return res.status(409).json({ error: 'Este negocio está cerrado en este momento. Podrás reservar cuando esté abierto.' });
         }
         const { habitacion_ids, fecha_entrada, fecha_salida, personas, cantidades } = req.body ?? {};
         if (!Array.isArray(habitacion_ids) || habitacion_ids.length === 0) {
