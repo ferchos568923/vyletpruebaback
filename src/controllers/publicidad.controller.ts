@@ -10,7 +10,7 @@ const parseDecimal = (v: unknown): number | undefined => (v === undefined || v =
 
 const buildData = (body: any) => {
   const data: any = {};
-  const campos = ['titulo', 'imagen', 'enlace', 'descripcion', 'ubicacion', 'estado'];
+  const campos = ['titulo', 'subtitulo', 'imagen', 'enlace', 'descripcion', 'ubicacion', 'estado'];
   for (const c of campos) if (body[c] !== undefined) data[c] = body[c];
   if (body.empresa_id !== undefined) data.empresa_id = Number(body.empresa_id);
   if (body.fecha_inicio !== undefined) data.fecha_inicio = body.fecha_inicio === '' || body.fecha_inicio === null ? null : parseFecha(body.fecha_inicio);

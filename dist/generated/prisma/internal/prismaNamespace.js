@@ -80,6 +80,7 @@ export const ModelName = {
     empresas: 'empresas',
     etiquetas: 'etiquetas',
     evento_imagenes: 'evento_imagenes',
+    evento_etiquetas: 'evento_etiquetas',
     eventos: 'eventos',
     favoritos: 'favoritos',
     habitacion_imagenes: 'habitacion_imagenes',
@@ -190,10 +191,15 @@ export const CiudadesScalarFieldEnum = {
     nombre: 'nombre',
     slug: 'slug',
     descripcion: 'descripcion',
+    historia: 'historia',
     imagen_principal: 'imagen_principal',
     latitud: 'latitud',
     longitud: 'longitud',
+    altitud: 'altitud',
+    temperatura_min: 'temperatura_min',
+    temperatura_max: 'temperatura_max',
     poblacion: 'poblacion',
+    distincion: 'distincion',
     es_turistica: 'es_turistica',
     activo: 'activo',
     fecha_creacion: 'fecha_creacion'
@@ -241,7 +247,9 @@ export const Cupones_usuarioScalarFieldEnum = {
     id: 'id',
     cupon_id: 'cupon_id',
     usuario_id: 'usuario_id',
-    fecha_uso: 'fecha_uso'
+    estado: 'estado',
+    fecha_uso: 'fecha_uso',
+    fecha_canje: 'fecha_canje'
 };
 export const Disponibilidad_sucursalScalarFieldEnum = {
     id: 'id',
@@ -280,6 +288,11 @@ export const Evento_imagenesScalarFieldEnum = {
     imagen: 'imagen',
     principal: 'principal'
 };
+export const Evento_etiquetasScalarFieldEnum = {
+    id: 'id',
+    evento_id: 'evento_id',
+    etiqueta_id: 'etiqueta_id'
+};
 export const EventosScalarFieldEnum = {
     id: 'id',
     ciudad_id: 'ciudad_id',
@@ -295,9 +308,20 @@ export const EventosScalarFieldEnum = {
     precio_desde: 'precio_desde',
     capacidad: 'capacidad',
     destacado: 'destacado',
+    banner_principal: 'banner_principal',
+    banner_fecha_inicio: 'banner_fecha_inicio',
+    banner_fecha_fin: 'banner_fecha_fin',
     activo: 'activo',
     fecha_creacion: 'fecha_creacion',
-    categoria_evento_id: 'categoria_evento_id'
+    categoria_evento_id: 'categoria_evento_id',
+    instagram_url: 'instagram_url',
+    facebook_url: 'facebook_url',
+    tiktok_url: 'tiktok_url',
+    tiketera_url: 'tiketera_url',
+    tiketera_plataforma: 'tiketera_plataforma',
+    email_contacto: 'email_contacto',
+    whatsapp_contacto: 'whatsapp_contacto',
+    sitio_web: 'sitio_web'
 };
 export const FavoritosScalarFieldEnum = {
     id: 'id',
@@ -418,6 +442,7 @@ export const PublicidadesScalarFieldEnum = {
     id: 'id',
     empresa_id: 'empresa_id',
     titulo: 'titulo',
+    subtitulo: 'subtitulo',
     imagen: 'imagen',
     enlace: 'enlace',
     fecha_inicio: 'fecha_inicio',
@@ -550,6 +575,7 @@ export const SucursalesScalarFieldEnum = {
     empresa_id: 'empresa_id',
     ciudad_id: 'ciudad_id',
     nombre: 'nombre',
+    descripcion: 'descripcion',
     direccion: 'direccion',
     telefono: 'telefono',
     whatsapp: 'whatsapp',

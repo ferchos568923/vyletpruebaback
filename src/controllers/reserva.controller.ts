@@ -123,10 +123,6 @@ export const crearReserva = async (req: Request, res: Response) => {
     const sucursal = await prisma.sucursales.findFirst({ where: { id: sucursalId, activo: true } });
     if (!sucursal) return res.status(404).json({ error: 'Sucursal no encontrada' });
 
-    if (estadoAbierto(sucursal.horario) === 'cerrado') {
-      return res.status(409).json({ error: 'Este negocio está cerrado en este momento. Podrás reservar cuando esté abierto.' });
-    }
-
     if (!(await permiteReservas(sucursal.empresa_id))) {
       return res.status(403).json({ error: 'Esta empresa no ofrece reservas. Disponible solo en el plan Premium o superior.' });
     }

@@ -24,6 +24,8 @@ import recomendacionRoutes from './recomendacion.routes.js';
 import favoritoRoutes from './favorito.routes.js';
 import planViajeRoutes from './plan-viaje.routes.js';
 import notificacionRoutes from './notificacion.routes.js';
+import estadisticasRoutes from './estadisticas.routes.js';
+import qrRoutes from './qr.routes.js';
 
 const router = Router();
 
@@ -52,5 +54,7 @@ router.use('/', recomendacionRoutes);
 router.use('/', favoritoRoutes);
 router.use('/', planViajeRoutes);
 router.use('/', notificacionRoutes);
+router.use('/', estadisticasRoutes);
+router.use('/', qrRoutes);
 
 export default router;

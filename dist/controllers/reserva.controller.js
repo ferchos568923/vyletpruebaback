@@ -1,7 +1,6 @@
 import { prisma } from '../services/prisma.js';
 import { canGestionarEmpresaConPermiso, canGestionarSucursal, sucursalesAsignadasEmpleado } from '../middlewares/auth.js';
 import { permiteReservas } from '../services/planes.service.js';
-import { estadoAbierto } from '../services/horario.service.js';
 const usuarioSelect = {
     id: true,
     nombres: true,
@@ -98,9 +97,6 @@ export const crearReserva = async (req, res) => {
         const sucursal = await prisma.sucursales.findFirst({ where: { id: sucursalId, activo: true } });
         if (!sucursal)
             return res.status(404).json({ error: 'Sucursal no encontrada' });
-        if (estadoAbierto(sucursal.horario) === 'cerrado') {
-            return res.status(409).json({ error: 'Este negocio está cerrado en este momento. Podrás reservar cuando esté abierto.' });
-        }
         if (!(await permiteReservas(sucursal.empresa_id))) {
             return res.status(403).json({ error: 'Esta empresa no ofrece reservas. Disponible solo en el plan Premium o superior.' });
         }

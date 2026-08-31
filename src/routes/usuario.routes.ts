@@ -1,8 +1,12 @@
 import { Router } from 'express';
 import * as usuarioController from '../controllers/usuario.controller.js';
+import * as habitacionController from '../controllers/habitacion.controller.js';
 import { authenticate, requirePermiso } from '../middlewares/auth.js';
 
 const router = Router();
+
+// Mis reservas de habitación (ANTES de /:id para evitar conflicto)
+router.get('/mis-reservas-habitacion', authenticate, habitacionController.misReservasHabitacion);
 
 router.get('/', authenticate, requirePermiso('usuarios:listar'), usuarioController.list);
 router.post('/', authenticate, requirePermiso('usuarios:crear'), usuarioController.create);

@@ -276,3 +276,38 @@ export const asignarPermisosEmpleado = async (req, res) => {
         res.status(500).json({ error: 'Error al asignar permisos del empleado' });
     }
 };
+// GET /api/empleados/mios  (dueño/staff: todos los empleados de sus empresas)
+export const listMine = async (req, res) => {
+    try {
+        const empresas = await prisma.empresas.findMany({
+            where: {
+                OR: [
+                    { usuario_empresas: { some: { usuario_id: req.user.id } } },
+                    { propietario: req.user.correo }
+                ]
+            },
+            select: { id: true, nombre: true }
+        });
+        const empresaIds = empresas.map((e) => e.id);
+        const empresasMap = new Map(empresas.map((e) => [e.id, e.nombre]));
+        const empleados = await prisma.empresa_empleados.findMany({
+            where: { empresa_id: { in: empresaIds } },
+            orderBy: { fecha_ingreso: 'desc' },
+            include: {
+                usuarios: { select: usuarioSelect },
+                cargos_empresa: true,
+                empleado_permisos: { include: { permisos_empresa: true } },
+                empleado_sucursales: { include: { sucursales: { select: { id: true, nombre: true } } } }
+            }
+        });
+        const resultado = empleados.map((emp) => ({
+            ...emp,
+            empresa_nombre: empresasMap.get(emp.empresa_id) ?? ''
+        }));
+        res.json(resultado);
+    }
+    catch (error) {
+        console.error('Error listando mis empleados:', error);
+        res.status(500).json({ error: 'Error al listar empleados' });
+    }
+};

@@ -184,16 +184,23 @@ export const canjear = async (req: Request, res: Response) => {
     }
 
     const yaCanjeado = await prisma.cupones_usuario.findFirst({
-      where: { cupon_id: cuponId, usuario_id: req.user.id }
+      where: { cupon_id: cuponId, usuario_id: req.user.id, estado: 'canjeado' }
     });
     if (yaCanjeado) return res.status(400).json({ error: 'Ya canjeaste este cupón' });
 
-    await prisma.$transaction([
-      prisma.cupones_usuario.create({ data: { cupon_id: cuponId, usuario_id: req.user.id } }),
-      prisma.cupones.update({ where: { id: cuponId }, data: { usos_realizados: { increment: 1 } } })
-    ]);
+    // Verificar que no tenga un pendiente activo
+    const pendiente = await prisma.cupones_usuario.findFirst({
+      where: { cupon_id: cuponId, usuario_id: req.user.id, estado: 'pendiente' }
+    });
+    if (pendiente) {
+      return res.json({ message: 'Ya tienes un QR activo para este cupón', pendiente: true });
+    }
 
-    res.json({ message: 'Cupón canjeado correctamente' });
+    await prisma.cupones_usuario.create({
+      data: { cupon_id: cuponId, usuario_id: req.user.id, estado: 'pendiente' }
+    });
+
+    res.json({ message: 'Cupón reclamado. Presenta el QR en la sucursal para canjear.' });
   } catch (error) {
     console.error('Error canjeando cupón:', error);
     res.status(500).json({ error: 'Error al canjear cupón' });

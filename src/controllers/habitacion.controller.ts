@@ -236,9 +236,6 @@ export const crearReservaHabitacion = async (req: Request, res: Response) => {
     if (!(await permiteReservas(sucursalHab.empresa_id))) {
       return res.status(403).json({ error: 'Las reservas solo están disponibles en el plan Premium o superior. Actualiza tu plan.' });
     }
-    if (estadoAbierto(sucursalHab.horario) === 'cerrado') {
-      return res.status(409).json({ error: 'Este negocio está cerrado en este momento. Podrás reservar cuando esté abierto.' });
-    }
 
     const { fecha_entrada, fecha_salida, personas, cantidad } = req.body ?? {};
     if (!fecha_entrada || !fecha_salida) {
@@ -308,9 +305,6 @@ export const crearReservaHabitacionMulti = async (req: Request, res: Response) =
     if (!(await esHospedaje(sucursalId))) return res.status(404).json({ error: 'Habitaciones no disponibles para este negocio' });
     if (!(await permiteReservas(sucursal.empresa_id))) {
       return res.status(403).json({ error: 'Las reservas solo están disponibles en el plan Premium o superior. Actualiza tu plan.' });
-    }
-    if (estadoAbierto(sucursal.horario) === 'cerrado') {
-      return res.status(409).json({ error: 'Este negocio está cerrado en este momento. Podrás reservar cuando esté abierto.' });
     }
 
     const { habitacion_ids, fecha_entrada, fecha_salida, personas, cantidades } = req.body ?? {};
@@ -543,5 +537,27 @@ export const cambiarEstadoReservaHabitacion = async (req: Request, res: Response
   } catch (error) {
     console.error('Error actualizando reserva de habitación:', error);
     res.status(500).json({ error: 'Error al actualizar reserva de habitación' });
+  }
+};
+
+// GET /api/usuarios/mis-reservas-habitacion
+export const misReservasHabitacion = async (req: Request, res: Response) => {
+  try {
+    const reservas = await prisma.reservas_habitacion.findMany({
+      where: { usuario_id: req.user.id },
+      orderBy: { fecha_entrada: 'desc' },
+      include: {
+        habitaciones: {
+          select: {
+            id: true, nombre: true, precio: true, capacidad: true,
+            sucursales: { select: { id: true, nombre: true, ciudades: { select: { nombre: true } } } }
+          }
+        }
+      }
+    });
+    res.json(reservas);
+  } catch (error) {
+    console.error('Error listando mis reservas de habitación:', error);
+    res.status(500).json({ error: 'Error al listar reservas' });
   }
 };

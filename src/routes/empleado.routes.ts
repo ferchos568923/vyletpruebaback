@@ -6,6 +6,8 @@ const router = Router();
 
 router.get('/cargos-empresa', empleadoController.listCargos);
 
+router.get('/empleados/mios', authenticate, empleadoController.listMine);
+
 router.get('/empresas/:id/empleados', authenticate, requirePermiso('empresas:ver'), empleadoController.list);
 router.get('/empresas/:id/empleados/buscar', authenticate, requirePermiso('empresas:ver'), empleadoController.buscar);
 router.post('/empresas/:id/empleados', authenticate, requirePermiso('empresas:editar'), empleadoController.agregar);

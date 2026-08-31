@@ -6,7 +6,7 @@ const parseFecha = (v) => (v === undefined || v === null || v === '' ? undefined
 const parseDecimal = (v) => (v === undefined || v === null || v === '' ? undefined : Number(v));
 const buildData = (body) => {
     const data = {};
-    const campos = ['titulo', 'imagen', 'enlace', 'descripcion', 'ubicacion', 'estado'];
+    const campos = ['titulo', 'subtitulo', 'imagen', 'enlace', 'descripcion', 'ubicacion', 'estado'];
     for (const c of campos)
         if (body[c] !== undefined)
             data[c] = body[c];

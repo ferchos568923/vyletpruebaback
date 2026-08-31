@@ -6,6 +6,7 @@ const router = Router();
 
 // Público
 router.get('/eventos', evento.listPublic);
+router.get('/eventos/banner', evento.listBanner);
 router.get('/eventos/:id', evento.getById);
 
 // Admin (configuraciones)

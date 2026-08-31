@@ -4,6 +4,7 @@ import { authenticate, requirePermiso } from '../middlewares/auth.js';
 const router = Router();
 // Público
 router.get('/eventos', evento.listPublic);
+router.get('/eventos/banner', evento.listBanner);
 router.get('/eventos/:id', evento.getById);
 // Admin (configuraciones)
 router.get('/admin/eventos', authenticate, requirePermiso('configuraciones:ver'), evento.adminList);

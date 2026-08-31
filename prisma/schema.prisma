@@ -64,10 +64,15 @@ model ciudades {
   nombre           String                    @db.VarChar(100)
   slug             String?                   @unique @db.VarChar(150)
   descripcion      String?
+  historia         String?
   imagen_principal String?                   @db.VarChar(500)
   latitud          Decimal?                  @db.Decimal(10, 8)
   longitud         Decimal?                  @db.Decimal(11, 8)
+  altitud          Int?                      // metros sobre el nivel del mar
+  temperatura_min  Int?                      // grados Celsius
+  temperatura_max  Int?                      // grados Celsius
   poblacion        Int?
+  distincion       String?                   @db.VarChar(200) // ej: "Patrimonio UNESCO", "Capital bananera"
   es_turistica     Boolean?                  @default(false)
   activo           Boolean?                  @default(true)
   fecha_creacion   DateTime?                 @default(now()) @db.Timestamp(6)
@@ -124,7 +129,9 @@ model cupones_usuario {
   id         Int       @id @default(autoincrement())
   cupon_id   Int
   usuario_id Int
+  estado     String?   @default("pendiente") @db.VarChar(20) // pendiente | canjeado
   fecha_uso  DateTime? @default(now()) @db.Timestamp(6)
+  fecha_canje DateTime? @db.Timestamp(6)
   cupones    cupones   @relation(fields: [cupon_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   usuarios   usuarios  @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
@@ -171,6 +178,7 @@ model etiquetas {
   nombre             String               @db.VarChar(100)
   producto_etiquetas producto_etiquetas[]
   sucursal_etiquetas sucursal_etiquetas[]
+  evento_etiquetas   evento_etiquetas[]
 }
 
 model evento_imagenes {
@@ -179,6 +187,16 @@ model evento_imagenes {
   imagen    String   @db.VarChar(500)
   principal Boolean? @default(false)
   eventos   eventos  @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model evento_etiquetas {
+  id          Int      @id @default(autoincrement())
+  evento_id   Int
+  etiqueta_id Int
+  eventos     eventos @relation(fields: [evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  etiquetas   etiquetas @relation(fields: [etiqueta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([evento_id, etiqueta_id])
 }
 
 model eventos {
@@ -196,10 +214,22 @@ model eventos {
   precio_desde        Decimal?                  @db.Decimal(10, 2)
   capacidad           Int?
   destacado           Boolean?                  @default(false)
+  banner_principal    Boolean?                  @default(false)
+  banner_fecha_inicio DateTime?                 @db.Timestamp(6)
+  banner_fecha_fin    DateTime?                 @db.Timestamp(6)
   activo              Boolean?                  @default(true)
   fecha_creacion      DateTime?                 @default(now()) @db.Timestamp(6)
   categoria_evento_id Int?
+  instagram_url       String?                   @db.VarChar(500)
+  facebook_url        String?                   @db.VarChar(500)
+  tiktok_url          String?                   @db.VarChar(500)
+  tiketera_url        String?                   @db.VarChar(500)
+  tiketera_plataforma String?                   @db.VarChar(100)
+  email_contacto      String?                   @db.VarChar(250)
+  whatsapp_contacto   String?                   @db.VarChar(50)
+  sitio_web           String?                   @db.VarChar(500)
   evento_imagenes     evento_imagenes[]
+  evento_etiquetas    evento_etiquetas[]
   categorias_evento   categorias_evento?        @relation(fields: [categoria_evento_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_evento_categoria")
   ciudades            ciudades                  @relation(fields: [ciudad_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_evento_ciudad")
   plan_viaje_eventos  plan_viaje_eventos[]
@@ -360,6 +390,7 @@ model publicidades {
   id                     Int                      @id @default(autoincrement())
   empresa_id             Int
   titulo                 String                   @db.VarChar(250)
+  subtitulo              String?                  @db.VarChar(300)
   imagen                 String?                  @db.VarChar(500)
   enlace                 String?                  @db.VarChar(500)
   fecha_inicio           DateTime?                @db.Date
@@ -542,6 +573,7 @@ model sucursales {
   empresa_id              Int
   ciudad_id               Int
   nombre                  String                    @db.VarChar(200)
+  descripcion             String?
   direccion               String
   telefono                String?                   @db.VarChar(30)
   whatsapp                String?                   @db.VarChar(30)

@@ -1,0 +1,381 @@
+import { prisma } from '../services/prisma.js';
+import { generarQRToken, verificarQRToken, generarQRReserva as genQRReserva, verificarQRReserva as verQRReserva } from '../services/qr.service.js';
+// POST /api/cupones/:id/generar-qr  (cliente autenticado)
+export const generarQR = async (req, res) => {
+    try {
+        const cuponId = Number(req.params.id);
+        const usuarioId = req.user.id;
+        // Verificar que el cupón existe y está activo
+        const cupon = await prisma.cupones.findUnique({
+            where: { id: cuponId },
+            include: { sucursales: { select: { nombre: true, activo: true } } }
+        });
+        if (!cupon)
+            return res.status(404).json({ error: 'Cupón no encontrado' });
+        if (!cupon.activo)
+            return res.status(400).json({ error: 'Cupón inactivo' });
+        // Verificar fechas
+        const hoy = new Date();
+        if (cupon.fecha_inicio && cupon.fecha_inicio > hoy) {
+            return res.status(400).json({ error: 'Cupón aún no está disponible' });
+        }
+        if (cupon.fecha_fin && cupon.fecha_fin < hoy) {
+            return res.status(400).json({ error: 'Cupón expirado' });
+        }
+        // Verificar usos disponibles
+        if (cupon.cantidad_usos && (cupon.usos_realizados ?? 0) >= cupon.cantidad_usos) {
+            return res.status(400).json({ error: 'Cupón agotado' });
+        }
+        // Verificar que el usuario no haya canjeado ya este cupón (estado = canjeado)
+        const yaCanjeado = await prisma.cupones_usuario.findFirst({
+            where: { cupon_id: cuponId, usuario_id: usuarioId, estado: 'canjeado' }
+        });
+        if (yaCanjeado) {
+            return res.status(400).json({ error: 'Ya canjeaste este cupón' });
+        }
+        // Verificar que no tenga un QR pendiente activo para este cupón
+        const pendiente = await prisma.cupones_usuario.findFirst({
+            where: { cupon_id: cuponId, usuario_id: usuarioId, estado: 'pendiente' }
+        });
+        // Generar token QR
+        const token = generarQRToken(usuarioId, cuponId);
+        // Si ya tiene pendiente, actualizar el token; si no, crear registro
+        if (pendiente) {
+            // El registro ya existe, solo devolvemos el QR
+            // (el token se valida en tiempo de escaneo, no se almacena)
+        }
+        else {
+            await prisma.cupones_usuario.create({
+                data: { cupon_id: cuponId, usuario_id: usuarioId, estado: 'pendiente' }
+            });
+        }
+        res.json({
+            token,
+            qr_data: `VYLET-QR:${token}`,
+            cupon: {
+                titulo: cupon.titulo,
+                tipo_descuento: cupon.tipo_descuento,
+                valor_descuento: cupon.valor_descuento,
+                sucursal: cupon.sucursales.nombre,
+            },
+            expira_en: '5 minutos',
+        });
+    }
+    catch (error) {
+        console.error('Error generando QR:', error);
+        res.status(500).json({ error: 'Error al generar QR' });
+    }
+};
+// POST /api/cupones/verificar-qr  (empleado autenticado)
+export const verificarQR = async (req, res) => {
+    try {
+        const { token } = req.body;
+        if (!token)
+            return res.status(400).json({ error: 'Token requerido' });
+        // Decodificar token
+        const payload = verificarQRToken(token);
+        if (!payload) {
+            return res.status(400).json({ error: 'QR inválido o expirado', codigo: 'QR_EXPIRADO' });
+        }
+        const { uid, cid } = payload;
+        // Buscar el registro de cupón_usuario
+        const cuponUsuario = await prisma.cupones_usuario.findFirst({
+            where: { cupon_id: cid, usuario_id: uid },
+            include: {
+                cupones: {
+                    include: { sucursales: { select: { id: true, nombre: true } } }
+                },
+                usuarios: { select: { id: true, nombres: true, apellidos: true, correo: true, cedula: true } }
+            }
+        });
+        if (!cuponUsuario) {
+            return res.status(404).json({ error: 'Canje no encontrado' });
+        }
+        if (cuponUsuario.estado === 'canjeado') {
+            return res.status(400).json({ error: 'Este cupón ya fue canjeado', codigo: 'YA_CANJEADO' });
+        }
+        // Verificar que el cupón sigue activo
+        const cupon = cuponUsuario.cupones;
+        if (!cupon.activo) {
+            return res.status(400).json({ error: 'Cupón inactivo' });
+        }
+        const hoy = new Date();
+        if (cupon.fecha_fin && cupon.fecha_fin < hoy) {
+            return res.status(400).json({ error: 'Cupón expirado' });
+        }
+        if (cupon.cantidad_usos && (cupon.usos_realizados ?? 0) >= cupon.cantidad_usos) {
+            return res.status(400).json({ error: 'Cupón agotado' });
+        }
+        // Devolver datos para que el empleado confirme
+        res.json({
+            valido: true,
+            cliente: {
+                nombre: `${cuponUsuario.usuarios.nombres} ${cuponUsuario.usuarios.apellidos || ''}`.trim(),
+                correo: cuponUsuario.usuarios.correo,
+                cedula: cuponUsuario.usuarios.cedula,
+            },
+            cupon: {
+                id: cupon.id,
+                titulo: cupon.titulo,
+                tipo_descuento: cupon.tipo_descuento,
+                valor_descuento: cupon.valor_descuento,
+                sucursal: cupon.sucursales.nombre,
+                sucursal_id: cupon.sucursales.id,
+            },
+            canje_id: cuponUsuario.id,
+        });
+    }
+    catch (error) {
+        console.error('Error verificando QR:', error);
+        res.status(500).json({ error: 'Error al verificar QR' });
+    }
+};
+// POST /api/cupones/confirmar-canje  (empleado autenticado)
+export const confirmarCanje = async (req, res) => {
+    try {
+        const { canje_id } = req.body;
+        if (!canje_id)
+            return res.status(400).json({ error: 'canje_id requerido' });
+        const cuponUsuario = await prisma.cupones_usuario.findUnique({
+            where: { id: canje_id },
+            include: { cupones: true }
+        });
+        if (!cuponUsuario)
+            return res.status(404).json({ error: 'Canje no encontrado' });
+        if (cuponUsuario.estado === 'canjeado') {
+            return res.status(400).json({ error: 'Ya fue canjeado' });
+        }
+        // Ejecutar canje atómico
+        await prisma.$transaction([
+            prisma.cupones_usuario.update({
+                where: { id: canje_id },
+                data: { estado: 'canjeado', fecha_canje: new Date() }
+            }),
+            prisma.cupones.update({
+                where: { id: cuponUsuario.cupon_id },
+                data: { usos_realizados: { increment: 1 } }
+            })
+        ]);
+        res.json({ message: 'Canje confirmado correctamente' });
+    }
+    catch (error) {
+        console.error('Error confirmando canje:', error);
+        res.status(500).json({ error: 'Error al confirmar canje' });
+    }
+};
+// ============================================================
+// QR PARA RESERVAS (mesa, habitación, visita)
+// ============================================================
+// POST /api/reservas/:id/generar-qr  (cliente autenticado)
+export const generarQRReservaCtrl = async (req, res) => {
+    try {
+        const reservaId = Number(req.params.id);
+        const tipo = req.query.tipo;
+        const usuarioId = req.user.id;
+        if (!tipo || !['mesa', 'habitacion', 'visita'].includes(tipo)) {
+            return res.status(400).json({ error: 'Tipo de reserva inválido (mesa | habitacion | visita)' });
+        }
+        let reserva = null;
+        let sucursalNombre = '';
+        if (tipo === 'mesa') {
+            reserva = await prisma.reservas.findUnique({
+                where: { id: reservaId },
+                include: { sucursales: { select: { nombre: true } }, mesas: { select: { nombre: true } } }
+            });
+            if (!reserva)
+                return res.status(404).json({ error: 'Reserva no encontrada' });
+            if (reserva.usuario_id !== usuarioId)
+                return res.status(403).json({ error: 'No autorizado' });
+            if (reserva.estado === 'cancelada')
+                return res.status(400).json({ error: 'Reserva cancelada' });
+            if (reserva.estado === 'completada')
+                return res.status(400).json({ error: 'Reserva ya completada' });
+            sucursalNombre = reserva.sucursales?.nombre ?? '';
+        }
+        else if (tipo === 'habitacion') {
+            reserva = await prisma.reservas_habitacion.findUnique({
+                where: { id: reservaId },
+                include: { habitaciones: { select: { nombre: true, sucursales: { select: { nombre: true } } } } }
+            });
+            if (!reserva)
+                return res.status(404).json({ error: 'Reserva no encontrada' });
+            if (reserva.usuario_id !== usuarioId)
+                return res.status(403).json({ error: 'No autorizado' });
+            if (reserva.estado === 'cancelada')
+                return res.status(400).json({ error: 'Reserva cancelada' });
+            if (reserva.estado === 'completada')
+                return res.status(400).json({ error: 'Reserva ya completada' });
+            sucursalNombre = reserva.habitaciones?.sucursales?.nombre ?? '';
+        }
+        else if (tipo === 'visita') {
+            reserva = await prisma.reservas_visita.findUnique({
+                where: { id: reservaId },
+                include: { sucursales: { select: { nombre: true } } }
+            });
+            if (!reserva)
+                return res.status(404).json({ error: 'Reserva no encontrada' });
+            if (reserva.usuario_id !== usuarioId)
+                return res.status(403).json({ error: 'No autorizado' });
+            if (reserva.estado === 'cancelada')
+                return res.status(400).json({ error: 'Reserva cancelada' });
+            if (reserva.estado === 'completada')
+                return res.status(400).json({ error: 'Reserva ya completada' });
+            sucursalNombre = reserva.sucursales?.nombre ?? '';
+        }
+        const token = genQRReserva(usuarioId, reservaId, tipo);
+        res.json({
+            token,
+            qr_data: `VYLET-QR:${token}`,
+            reserva: { id: reservaId, tipo, sucursal: sucursalNombre },
+            expira_en: '5 minutos',
+        });
+    }
+    catch (error) {
+        console.error('Error generando QR reserva:', error);
+        res.status(500).json({ error: 'Error al generar QR' });
+    }
+};
+// POST /api/reservas/verificar-qr  (empleado autenticado)
+export const verificarQRReservaCtrl = async (req, res) => {
+    try {
+        const { token } = req.body;
+        if (!token)
+            return res.status(400).json({ error: 'Token requerido' });
+        const payload = verQRReserva(token);
+        if (!payload) {
+            return res.status(400).json({ error: 'QR inválido o expirado', codigo: 'QR_EXPIRADO' });
+        }
+        const { uid, rid, rtipo } = payload;
+        let reserva = null;
+        let sucursalId = 0;
+        if (rtipo === 'mesa') {
+            reserva = await prisma.reservas.findUnique({
+                where: { id: rid },
+                include: {
+                    sucursales: { select: { id: true, nombre: true } },
+                    mesas: { select: { nombre: true, puestos: true } },
+                    usuarios: { select: { nombres: true, apellidos: true, correo: true, cedula: true } }
+                }
+            });
+            if (!reserva)
+                return res.status(404).json({ error: 'Reserva no encontrada' });
+            sucursalId = reserva.sucursal_id;
+        }
+        else if (rtipo === 'habitacion') {
+            reserva = await prisma.reservas_habitacion.findUnique({
+                where: { id: rid },
+                include: {
+                    habitaciones: { select: { nombre: true, sucursal_id: true, sucursales: { select: { id: true, nombre: true } } } },
+                    usuarios: { select: { nombres: true, apellidos: true, correo: true, cedula: true } }
+                }
+            });
+            if (!reserva)
+                return res.status(404).json({ error: 'Reserva no encontrada' });
+            sucursalId = reserva.habitaciones?.sucursal_id ?? 0;
+        }
+        else if (rtipo === 'visita') {
+            reserva = await prisma.reservas_visita.findUnique({
+                where: { id: rid },
+                include: {
+                    sucursales: { select: { id: true, nombre: true } },
+                    usuarios: { select: { nombres: true, apellidos: true, correo: true, cedula: true } }
+                }
+            });
+            if (!reserva)
+                return res.status(404).json({ error: 'Reserva no encontrada' });
+            sucursalId = reserva.sucursal_id;
+        }
+        if (reserva.estado === 'cancelada') {
+            return res.status(400).json({ error: 'Reserva cancelada', codigo: 'CANCELADA' });
+        }
+        if (reserva.estado === 'completada') {
+            return res.status(400).json({ error: 'Reserva ya fue atendida', codigo: 'COMPLETADA' });
+        }
+        // Construir respuesta según tipo
+        const cliente = reserva.usuarios
+            ? { nombre: `${reserva.usuarios.nombres} ${reserva.usuarios.apellidos || ''}`.trim(), correo: reserva.usuarios.correo, cedula: reserva.usuarios.cedula }
+            : { nombre: reserva.cliente_nombre || 'Cliente', correo: null, cedula: null };
+        let detalle = { id: rid, tipo: rtipo, sucursal_id: sucursalId };
+        if (rtipo === 'mesa') {
+            detalle = {
+                ...detalle,
+                sucursal: reserva.sucursales?.nombre,
+                mesa: reserva.mesas?.nombre ?? 'Sin nombre',
+                personas: reserva.cantidad_personas,
+                fecha: reserva.fecha_reserva,
+                hora: reserva.hora_inicio,
+                estado: reserva.estado,
+            };
+        }
+        else if (rtipo === 'habitacion') {
+            detalle = {
+                ...detalle,
+                sucursal: reserva.habitaciones?.sucursales?.nombre,
+                habitacion: reserva.habitaciones?.nombre ?? 'Sin nombre',
+                fecha_entrada: reserva.fecha_entrada,
+                fecha_salida: reserva.fecha_salida,
+                personas: reserva.personas,
+                estado: reserva.estado,
+            };
+        }
+        else if (rtipo === 'visita') {
+            detalle = {
+                ...detalle,
+                sucursal: reserva.sucursales?.nombre,
+                fecha: reserva.fecha_visita,
+                hora: reserva.hora_visita,
+                adultos: reserva.cantidad_adultos,
+                ninos: reserva.cantidad_ninos,
+                estado: reserva.estado,
+            };
+        }
+        res.json({ valido: true, cliente, reserva: detalle, reserva_id: rid });
+    }
+    catch (error) {
+        console.error('Error verificando QR reserva:', error);
+        res.status(500).json({ error: 'Error al verificar QR' });
+    }
+};
+// POST /api/reservas/confirmar-llegada  (empleado autenticado)
+export const confirmarLlegada = async (req, res) => {
+    try {
+        const { reserva_id, tipo } = req.body;
+        if (!reserva_id || !tipo)
+            return res.status(400).json({ error: 'reserva_id y tipo requeridos' });
+        if (tipo === 'mesa') {
+            const reserva = await prisma.reservas.findUnique({ where: { id: reserva_id } });
+            if (!reserva)
+                return res.status(404).json({ error: 'Reserva no encontrada' });
+            if (reserva.estado !== 'pendiente' && reserva.estado !== 'confirmada') {
+                return res.status(400).json({ error: `Reserva en estado "${reserva.estado}"` });
+            }
+            await prisma.reservas.update({ where: { id: reserva_id }, data: { estado: 'completada' } });
+        }
+        else if (tipo === 'habitacion') {
+            const reserva = await prisma.reservas_habitacion.findUnique({ where: { id: reserva_id } });
+            if (!reserva)
+                return res.status(404).json({ error: 'Reserva no encontrada' });
+            if (reserva.estado !== 'pendiente' && reserva.estado !== 'confirmada') {
+                return res.status(400).json({ error: `Reserva en estado "${reserva.estado}"` });
+            }
+            await prisma.reservas_habitacion.update({ where: { id: reserva_id }, data: { estado: 'completada' } });
+        }
+        else if (tipo === 'visita') {
+            const reserva = await prisma.reservas_visita.findUnique({ where: { id: reserva_id } });
+            if (!reserva)
+                return res.status(404).json({ error: 'Reserva no encontrada' });
+            if (reserva.estado !== 'pendiente' && reserva.estado !== 'confirmada') {
+                return res.status(400).json({ error: `Reserva en estado "${reserva.estado}"` });
+            }
+            await prisma.reservas_visita.update({ where: { id: reserva_id }, data: { estado: 'completada' } });
+        }
+        else {
+            return res.status(400).json({ error: 'Tipo inválido' });
+        }
+        res.json({ message: 'Llegada confirmada. Reserva completada.' });
+    }
+    catch (error) {
+        console.error('Error confirmando llegada:', error);
+        res.status(500).json({ error: 'Error al confirmar llegada' });
+    }
+};

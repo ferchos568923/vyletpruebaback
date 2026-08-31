@@ -94,8 +94,8 @@ export const adminProvincias = crud({
 });
 export const adminCiudades = crud({
     delegate: prisma.ciudades,
-    campos: ['provincia_id', 'nombre', 'es_turistica', 'activo'],
-    numericos: ['provincia_id'],
+    campos: ['provincia_id', 'nombre', 'slug', 'descripcion', 'historia', 'imagen_principal', 'altitud', 'temperatura_min', 'temperatura_max', 'poblacion', 'distincion', 'es_turistica', 'activo'],
+    numericos: ['provincia_id', 'altitud', 'temperatura_min', 'temperatura_max', 'poblacion'],
     booleanos: ['es_turistica', 'activo'],
     soft: true
 });

@@ -55,10 +55,6 @@ export const crearReservaVisita = async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Las reservas solo están disponibles en el plan Premium o superior. Actualiza tu plan.' });
     }
 
-    if (estadoAbierto(sucursal.horario) === 'cerrado') {
-      return res.status(409).json({ error: 'Este negocio está cerrado en este momento. Podrás reservar cuando esté abierto.' });
-    }
-
     const { fecha_visita, hora_visita, cantidad_adultos, cantidad_ninos, observaciones } = req.body;
     if (!fecha_visita) {
       return res.status(400).json({ error: 'fecha_visita es requerida' });
@@ -182,5 +178,28 @@ export const misReservasVisita = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error listando mis reservas de visita:', error);
     res.status(500).json({ error: 'Error al listar mis reservas de visita' });
+  }
+};
+
+// POST /api/visitas/sucursal/:id  — registrar una visita (puede ser anónima)
+export const registrarVisita = async (req: Request, res: Response) => {
+  try {
+    const sucursalId = Number(req.params.id);
+    if (!sucursalId) return res.status(400).json({ error: 'ID inválido' });
+
+    const usuarioId = req.user?.id ?? null;
+
+    await prisma.visitas_sucursal.create({
+      data: {
+        sucursal_id: sucursalId,
+        usuario_id: usuarioId,
+      },
+    });
+
+    res.json({ ok: true });
+  } catch (error) {
+    // No fallar la petición por esto — es tracking best-effort
+    console.error('Error registrando visita:', error);
+    res.json({ ok: true });
   }
 };

@@ -23,6 +23,34 @@ export const listarTuristicas = async (req, res) => {
         res.status(500).json({ error: 'Error al listar lugares turísticos' });
     }
 };
+// GET /api/sucursales/publicas  (público: todas las sucursales activas)
+export const listarPublicas = async (req, res) => {
+    try {
+        const sucursales = await prisma.sucursales.findMany({
+            where: { activo: true, empresas: { activo: true } },
+            orderBy: { fecha_creacion: 'desc' },
+            include: {
+                ciudades: { select: { id: true, nombre: true } },
+                empresas: {
+                    select: {
+                        id: true, nombre: true, logo: true, verificado: true, destacado: true,
+                        categorias_negocio: { select: { id: true, nombre: true } }
+                    }
+                },
+                _count: { select: { resenas: true } }
+            }
+        });
+        const mapped = sucursales.map(s => ({
+            ...s,
+            categorias_negocio: s.empresas?.categorias_negocio,
+        }));
+        res.json(mapped);
+    }
+    catch (error) {
+        console.error('Error listando sucursales públicas:', error);
+        res.status(500).json({ error: 'Error al listar sucursales' });
+    }
+};
 // GET /api/empresas/:empresaId/sucursales  (público)
 export const listByEmpresa = async (req, res) => {
     try {
@@ -138,7 +166,7 @@ export const create = async (req, res) => {
                 }
             }
         }
-        const { ciudad_id, nombre, direccion, telefono, whatsapp, imagen_principal, latitud, longitud, horario, precio_ninos, precio_adultos, aforo_maximo, gratuito } = req.body;
+        const { ciudad_id, nombre, descripcion, direccion, telefono, whatsapp, imagen_principal, latitud, longitud, horario, precio_ninos, precio_adultos, aforo_maximo, gratuito } = req.body;
         if (!ciudad_id || !nombre || !direccion) {
             return res.status(400).json({ error: 'ciudad_id, nombre y direccion son requeridos' });
         }
@@ -147,6 +175,7 @@ export const create = async (req, res) => {
                 empresa_id: empresaId,
                 ciudad_id: Number(ciudad_id),
                 nombre,
+                descripcion: descripcion != null ? String(descripcion) : null,
                 direccion,
                 telefono,
                 whatsapp,
@@ -176,7 +205,7 @@ export const update = async (req, res) => {
         if (!(await canGestionarSucursal(req, sucursal))) {
             return res.status(403).json({ error: 'No puedes gestionar esta sucursal' });
         }
-        const campos = ['nombre', 'direccion', 'telefono', 'whatsapp', 'imagen_principal', 'horario', 'ciudad_id'];
+        const campos = ['nombre', 'descripcion', 'direccion', 'telefono', 'whatsapp', 'imagen_principal', 'horario', 'ciudad_id'];
         const data = {};
         for (const campo of campos) {
             if (req.body[campo] !== undefined) {

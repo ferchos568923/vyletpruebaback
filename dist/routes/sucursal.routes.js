@@ -4,6 +4,7 @@ import { authenticate, authenticateOpcional, requirePermiso, requireSucursalAcce
 const router = Router();
 // Públicas
 router.get('/sucursales/turisticas', sucursalController.listarTuristicas);
+router.get('/sucursales/publicas', sucursalController.listarPublicas);
 router.get('/empresas/:empresaId/sucursales', authenticateOpcional, sucursalController.listByEmpresa);
 router.get('/sucursales/mias', authenticate, sucursalController.listMine);
 router.get('/sucursales/:id', authenticateOpcional, sucursalController.getById);
