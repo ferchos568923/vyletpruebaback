@@ -51,3 +51,48 @@ export const verificarQRReserva = (token: string): QRReservaPayload | null => {
     return null;
   }
 };
+
+// --- Cartilla de fidelización ---
+export interface QRCartillaPayload {
+  tipo: 'cartilla';
+  uid: number;
+  cid: number; // cartilla_cliente id
+  iat: number;
+  exp: number;
+}
+
+export const generarQRCartilla = (usuarioId: number, cartillaId: number): string => {
+  return jwt.sign({ tipo: 'cartilla', uid: usuarioId, cid: cartillaId }, QR_SECRET, { expiresIn: QR_EXPIRY });
+};
+
+export const verificarQRCartilla = (token: string): QRCartillaPayload | null => {
+  try {
+    const decoded = jwt.verify(token, QR_SECRET) as QRCartillaPayload;
+    if (decoded.tipo !== 'cartilla') return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+};
+
+// --- Pedidos (menú en mesa) ---
+export interface QRPedidoPayload {
+  tipo: 'pedido';
+  pid: number; // pedido id
+  iat: number;
+  exp: number;
+}
+
+export const generarQRPedido = (pedidoId: number): string => {
+  return jwt.sign({ tipo: 'pedido', pid: pedidoId }, QR_SECRET, { expiresIn: QR_EXPIRY });
+};
+
+export const verificarQRPedido = (token: string): QRPedidoPayload | null => {
+  try {
+    const decoded = jwt.verify(token, QR_SECRET) as QRPedidoPayload;
+    if (decoded.tipo !== 'pedido') return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+};

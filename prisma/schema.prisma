@@ -45,6 +45,7 @@ model categorias_negocio {
   permite_reservas  Boolean?   @default(false)
   permite_habitaciones Boolean? @default(false)
   permite_mesas     Boolean?   @default(false)
+  permite_canchas   Boolean?   @default(false)
   activo            Boolean?   @default(true)
   fecha_creacion    DateTime?  @default(now()) @db.Timestamp(6)
   empresas          empresas[]
@@ -134,6 +135,41 @@ model cupones_usuario {
   fecha_canje DateTime? @db.Timestamp(6)
   cupones    cupones   @relation(fields: [cupon_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   usuarios   usuarios  @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model cartilla_config {
+  id               Int       @id @default(autoincrement())
+  sucursal_id      Int       @unique
+  titulo           String    @default("Cartilla de fidelización") @db.VarChar(200)
+  descripcion      String?
+  sellos_requeridos Int      @default(10)
+  premio           String    @db.VarChar(300)
+  activo           Boolean?  @default(true)
+  fecha_creacion   DateTime? @default(now()) @db.Timestamp(6)
+  sucursales       sucursales @relation(fields: [sucursal_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cartilla_cliente cartilla_cliente[]
+}
+
+model cartilla_cliente {
+  id               Int       @id @default(autoincrement())
+  config_id        Int
+  usuario_id       Int
+  sellos           Int       @default(0)
+  estado           String?   @default("activa") @db.VarChar(20) // activa | completada | canjeada
+  fecha_completada DateTime? @db.Timestamp(6)
+  fecha_creacion   DateTime? @default(now()) @db.Timestamp(6)
+  cartilla_config  cartilla_config @relation(fields: [config_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuarios         usuarios  @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cartilla_sello   cartilla_sello[]
+}
+
+model cartilla_sello {
+  id          Int       @id @default(autoincrement())
+  cartilla_id Int
+  empleado_id Int?
+  fecha       DateTime? @default(now()) @db.Timestamp(6)
+  cartilla_cliente cartilla_cliente @relation(fields: [cartilla_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuarios    usuarios? @relation(fields: [empleado_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model disponibilidad_sucursal {
@@ -283,16 +319,20 @@ model mesas {
   cantidad       Int        @default(1)
   foto           String?    @db.VarChar(500)
   activa         Boolean?   @default(true)
+  qr_token       String?    @unique @db.VarChar(100)
   fecha_creacion DateTime?  @default(now()) @db.Timestamp(6)
   reservas       reservas[]
+  pedidos        pedidos[]
   sucursales     sucursales @relation(fields: [sucursal_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model notificaciones {
   id             Int       @id @default(autoincrement())
   usuario_id     Int
+  tipo           String?   @default("general") @db.VarChar(50)
   titulo         String?   @db.VarChar(200)
   mensaje        String?
+  enlace         String?   @db.VarChar(500)
   leido          Boolean?  @default(false)
   fecha_creacion DateTime? @default(now()) @db.Timestamp(6)
   usuarios       usuarios  @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -309,6 +349,39 @@ model pagos {
   fecha_pago      DateTime?      @default(now()) @db.Timestamp(6)
   empresas        empresas       @relation(fields: [empresa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pago_empresa")
   suscripciones   suscripciones? @relation(fields: [suscripcion_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pago_suscripcion")
+}
+
+model pedido_detalle {
+  id                 Int                 @id @default(autoincrement())
+  pedido_id          Int
+  producto_id        Int
+  cantidad           Int                 @default(1)
+  precio_unitario    Decimal             @default(0) @db.Decimal(10, 2)
+  nota               String?             @db.VarChar(300)
+  estado             String?             @default("pendiente") @db.VarChar(30)
+  fecha_creacion     DateTime?           @default(now()) @db.Timestamp(6)
+  pedidos            pedidos             @relation(fields: [pedido_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  productos_servicios productos_servicios @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model pedidos {
+  id                   Int              @id @default(autoincrement())
+  sucursal_id          Int
+  mesa_id              Int?
+  reserva_id           Int?
+  usuario_id           Int?
+  cliente_nombre       String?          @db.VarChar(200)
+  cliente_telefono     String?          @db.VarChar(30)
+  estado               String?          @default("pendiente") @db.VarChar(30)
+  total                Decimal?         @default(0) @db.Decimal(10, 2)
+  notas                String?
+  fecha_creacion       DateTime?        @default(now()) @db.Timestamp(6)
+  fecha_actualizacion  DateTime?        @default(now()) @db.Timestamp(6)
+  pedido_detalle       pedido_detalle[]
+  sucursales           sucursales       @relation(fields: [sucursal_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  mesas                mesas?           @relation(fields: [mesa_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reservas             reservas?        @relation(fields: [reserva_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuarios             usuarios?        @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model permisos {
@@ -330,6 +403,7 @@ model planes {
   permite_destacados  Boolean?        @default(false)
   permite_cupones     Boolean?        @default(false)
   permite_reservas    Boolean?        @default(false)
+  permite_cartillas   Boolean?        @default(false)
   dias_duracion       Int?
   destacado           Boolean?        @default(false)
   activo              Boolean?        @default(true)
@@ -371,6 +445,7 @@ model productos_servicios {
   categoria_producto_id Int?
   producto_etiquetas    producto_etiquetas[]
   producto_imagenes     producto_imagenes[]
+  pedido_detalle        pedido_detalle[]
   categorias_producto   categorias_producto? @relation(fields: [categoria_producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_producto_categoria")
   sucursales            sucursales           @relation(fields: [sucursal_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_producto_sucursal")
 }
@@ -444,9 +519,11 @@ model reservas {
   cliente_nombre    String?
   cliente_telefono  String?
   cliente_correo    String?
+  platos            String?
   sucursales        sucursales @relation(fields: [sucursal_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   usuarios          usuarios?  @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   mesas             mesas?     @relation(fields: [mesa_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  pedidos           pedidos[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -577,6 +654,10 @@ model sucursales {
   direccion               String
   telefono                String?                   @db.VarChar(30)
   whatsapp                String?                   @db.VarChar(30)
+  facebook                String?                   @db.VarChar(250)
+  instagram               String?                   @db.VarChar(250)
+  tiktok                  String?                   @db.VarChar(250)
+  sitio_web               String?                   @db.VarChar(250)
   imagen_principal        String?                   @db.VarChar(500)
   latitud                 Decimal?                  @db.Decimal(10, 8)
   longitud                Decimal?                  @db.Decimal(11, 8)
@@ -590,12 +671,14 @@ model sucursales {
   activo                  Boolean?                  @default(true)
   fecha_creacion          DateTime?                 @default(now()) @db.Timestamp(6)
   cupones                 cupones[]
+  cartilla_config           cartilla_config?
   disponibilidad_sucursal disponibilidad_sucursal[]
   empleado_sucursales     empleado_sucursales[]
   favoritos               favoritos[]
   habitaciones            habitaciones[]
   mesas                   mesas[]
   productos_servicios     productos_servicios[]
+  pedidos                 pedidos[]
   recomendaciones         recomendaciones[]
   resenas                 resenas[]
   reservas                reservas[]
@@ -608,6 +691,8 @@ model sucursales {
   visitas_sucursal        visitas_sucursal[]
   reservas_visita         reservas_visita[]
   plan_viaje_sucursales   plan_viaje_sucursales[]
+  canchas                 canchas[]
+  reservas_cancha         reservas_cancha[]
 }
 
 model reservas_visita {
@@ -627,16 +712,30 @@ model reservas_visita {
   usuarios         usuarios?  @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
+model reservas_compartidas {
+  id                        Int      @id @default(autoincrement())
+  reserva_id                Int
+  tipo_reserva              String   @db.VarChar(20)
+  compartido_por_usuario_id Int
+  compartido_con_usuario_id Int
+  estado                    String   @default("pendiente") @db.VarChar(20)
+  fecha_creacion            DateTime @default(now()) @db.Timestamp(6)
+  compartido_por            usuarios @relation("compartida_por", fields: [compartido_por_usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  compartido_con            usuarios @relation("compartida_con", fields: [compartido_con_usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  @@unique([reserva_id, compartido_con_usuario_id, tipo_reserva])
+}
+
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model suscripciones {
   id           Int      @id @default(autoincrement())
-  empresa_id   Int
+  empresa_id   Int?
+  cedula       String?  @db.VarChar(20)
   plan_id      Int
   fecha_inicio DateTime @db.Date
   fecha_fin    DateTime @db.Date
   estado       String?  @default("activa") @db.VarChar(50)
   pagos        pagos[]
-  empresas     empresas @relation(fields: [empresa_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  empresas     empresas? @relation(fields: [empresa_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   planes       planes   @relation(fields: [plan_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
@@ -697,6 +796,8 @@ model usuarios {
   ultimo_acceso             DateTime?                   @db.Timestamp(6)
   rol_id                    Int?
   auditoria                 auditoria[]
+  cartilla_cliente          cartilla_cliente[]
+  cartilla_sellos_dados     cartilla_sello[]
   cupones_usuario           cupones_usuario[]
   empresa_empleados         empresa_empleados[]
   favoritos                 favoritos[]
@@ -704,6 +805,7 @@ model usuarios {
   notificaciones            notificaciones[]
   resenas                   resenas[]
   reservas                  reservas[]
+  pedidos                   pedidos[]
   reservas_habitacion       reservas_habitacion[]
   solicitudes_dueno         solicitudes_dueno[]       @relation("solicitudes_dueno_usuario")
   solicitudes_atendidas     solicitudes_dueno[]       @relation("solicitudes_dueno_atendido")
@@ -717,6 +819,9 @@ model usuarios {
   reservas_visita           reservas_visita[]
   planes_viaje              planes_viaje[]
   plan_amigos               plan_viaje_amigos[]
+  compartidas_enviadas      reservas_compartidas[] @relation("compartida_por")
+  compartidas_recibidas     reservas_compartidas[] @relation("compartida_con")
+  reservas_cancha           reservas_cancha[]
 }
 
 model planes_viaje {
@@ -854,4 +959,38 @@ model usuario_empresas {
   fecha_creacion DateTime? @default(now()) @db.Timestamp(6)
   empresas       empresas  @relation(fields: [empresa_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_empresa_empresa")
   usuarios       usuarios  @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_empresa_usuario")
+}
+
+model canchas {
+  id           Int       @id @default(autoincrement())
+  sucursal_id  Int
+  nombre       String    @db.VarChar(100)
+  capacidad    Int?      @default(2)
+  precio_hora  Decimal?  @default(0) @db.Decimal(10, 2)
+  tipo         String?   @default("general") @db.VarChar(50)
+  activa       Boolean?  @default(true)
+  fecha_creacion DateTime? @default(now()) @db.Timestamp(6)
+  sucursales   sucursales @relation(fields: [sucursal_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reservas_cancha reservas_cancha[]
+}
+
+model reservas_cancha {
+  id                 Int        @id @default(autoincrement())
+  cancha_id          Int
+  sucursal_id        Int
+  usuario_id         Int?
+  fecha_reserva      DateTime   @db.Date
+  hora_inicio        DateTime   @db.Time(6)
+  hora_fin           DateTime   @db.Time(6)
+  duracion_horas     Decimal?   @default(1) @db.Decimal(3, 1)
+  cantidad_jugadores Int?
+  observaciones      String?
+  cliente_nombre     String?
+  cliente_telefono   String?
+  cliente_correo     String?
+  estado             String?    @default("pendiente") @db.VarChar(30)
+  fecha_creacion     DateTime?  @default(now()) @db.Timestamp(6)
+  canchas            canchas    @relation(fields: [cancha_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sucursales         sucursales @relation(fields: [sucursal_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  usuarios           usuarios?  @relation(fields: [usuario_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }

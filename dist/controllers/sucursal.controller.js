@@ -1,6 +1,6 @@
 import { prisma } from '../services/prisma.js';
 import { canGestionarEmpresa, canGestionarSucursal, isStaff } from '../middlewares/auth.js';
-import { limiteSucursales, suscripcionActiva } from '../services/planes.service.js';
+import { limiteSucursalesPorCedula, suscripcionActivaPorCedula, empresaTieneReservas } from '../services/planes.service.js';
 // GET /api/sucursales/turisticas  (público: sucursales de empresas categoría "Lugar Turistico")
 export const listarTuristicas = async (req, res) => {
     try {
@@ -63,11 +63,13 @@ export const listByEmpresa = async (req, res) => {
             orderBy: { fecha_creacion: 'desc' },
             include: { ciudades: true }
         });
+        const reservasHabilitadas = await empresaTieneReservas(empresaId);
+        const sucursalesConReservas = sucursales.map(s => ({ ...s, reservas_habilitadas: reservasHabilitadas }));
         if (req.user) {
-            const conGestion = await Promise.all(sucursales.map(async (s) => ({ ...s, puedoGestionar: await canGestionarSucursal(req, s) })));
+            const conGestion = await Promise.all(sucursalesConReservas.map(async (s) => ({ ...s, puedoGestionar: await canGestionarSucursal(req, s) })));
             return res.json(conGestion);
         }
-        res.json(sucursales);
+        res.json(sucursalesConReservas);
     }
     catch (error) {
         console.error('Error listando sucursales:', error);
@@ -131,7 +133,8 @@ export const getById = async (req, res) => {
         });
         if (!sucursal)
             return res.status(404).json({ error: 'Sucursal no encontrada' });
-        const resultado = { ...sucursal };
+        const reservasHabilitadas = await empresaTieneReservas(sucursal.empresa_id);
+        const resultado = { ...sucursal, reservas_habilitadas: reservasHabilitadas };
         if (req.user) {
             resultado.puedoGestionar = await canGestionarSucursal(req, sucursal);
         }
@@ -152,21 +155,28 @@ export const create = async (req, res) => {
         if (!(await canGestionarEmpresa(req, empresaId))) {
             return res.status(403).json({ error: 'No puedes gestionar esta empresa' });
         }
-        // Límite del plan: cantidad de sucursales según la suscripción activa de la empresa
+        // Límite del plan: cantidad de sucursales según la suscripción activa del usuario por cédula
         if (!isStaff(req)) {
-            const limite = await limiteSucursales(empresaId);
-            if (limite !== null) {
-                const count = await prisma.sucursales.count({ where: { empresa_id: empresaId, activo: true } });
-                if (count >= limite) {
-                    const sub = await suscripcionActiva(empresaId);
-                    const plan = sub?.planes?.nombre ?? 'Gratis';
-                    return res.status(403).json({
-                        error: `Tu plan ${plan} permite hasta ${limite} sucursal(es). Mejora de plan para agregar más.`
-                    });
+            const usuario = await prisma.usuarios.findUnique({
+                where: { id: req.user.id },
+                select: { cedula: true }
+            });
+            const cedula = usuario?.cedula ?? '';
+            if (cedula) {
+                const limite = await limiteSucursalesPorCedula(cedula);
+                if (limite !== null) {
+                    const count = await prisma.sucursales.count({ where: { empresa_id: empresaId, activo: true } });
+                    if (count >= limite) {
+                        const sub = await suscripcionActivaPorCedula(cedula);
+                        const plan = sub?.planes?.nombre ?? 'Gratis';
+                        return res.status(403).json({
+                            error: `Tu plan ${plan} permite hasta ${limite} sucursal(es). Mejora de plan para agregar más.`
+                        });
+                    }
                 }
             }
         }
-        const { ciudad_id, nombre, descripcion, direccion, telefono, whatsapp, imagen_principal, latitud, longitud, horario, precio_ninos, precio_adultos, aforo_maximo, gratuito } = req.body;
+        const { ciudad_id, nombre, descripcion, direccion, telefono, whatsapp, facebook, instagram, tiktok, sitio_web, imagen_principal, latitud, longitud, horario, precio_ninos, precio_adultos, aforo_maximo, gratuito } = req.body;
         if (!ciudad_id || !nombre || !direccion) {
             return res.status(400).json({ error: 'ciudad_id, nombre y direccion son requeridos' });
         }
@@ -179,6 +189,10 @@ export const create = async (req, res) => {
                 direccion,
                 telefono,
                 whatsapp,
+                facebook,
+                instagram,
+                tiktok,
+                sitio_web,
                 imagen_principal,
                 latitud: latitud !== undefined ? Number(latitud) : undefined,
                 longitud: longitud !== undefined ? Number(longitud) : undefined,
@@ -205,7 +219,7 @@ export const update = async (req, res) => {
         if (!(await canGestionarSucursal(req, sucursal))) {
             return res.status(403).json({ error: 'No puedes gestionar esta sucursal' });
         }
-        const campos = ['nombre', 'descripcion', 'direccion', 'telefono', 'whatsapp', 'imagen_principal', 'horario', 'ciudad_id'];
+        const campos = ['nombre', 'descripcion', 'direccion', 'telefono', 'whatsapp', 'facebook', 'instagram', 'tiktok', 'sitio_web', 'imagen_principal', 'horario', 'ciudad_id'];
         const data = {};
         for (const campo of campos) {
             if (req.body[campo] !== undefined) {

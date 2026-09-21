@@ -1,6 +1,6 @@
 import { prisma } from '../services/prisma.js';
 import { canGestionarSucursal, isStaff } from '../middlewares/auth.js';
-import { limiteProductos } from '../services/planes.service.js';
+import { limiteProductosPorCedula } from '../services/planes.service.js';
 const includeProducto = {
     categorias_producto: { select: { id: true, nombre: true } },
     producto_etiquetas: { include: { etiquetas: { select: { id: true, nombre: true } } } },
@@ -42,6 +42,27 @@ const verificarSucursal = async (req, res) => {
         return null;
     }
     return sucursal;
+};
+// GET /api/productos/:productoId  (público: detalle de producto)
+export const getPublic = async (req, res) => {
+    try {
+        const productoId = Number(req.params.productoId);
+        const producto = await prisma.productos_servicios.findFirst({
+            where: { id: productoId, activo: true },
+            include: {
+                ...includeProducto,
+                producto_imagenes: { orderBy: { orden: 'asc' } },
+                sucursales: { select: { id: true, nombre: true, direccion: true, imagen_principal: true, whatsapp: true, empresas: { select: { id: true, nombre: true } } } }
+            }
+        });
+        if (!producto)
+            return res.status(404).json({ error: 'Producto no encontrado' });
+        res.json(producto);
+    }
+    catch (error) {
+        console.error('Error obteniendo producto:', error);
+        res.status(500).json({ error: 'Error al obtener producto' });
+    }
 };
 // GET /api/sucursales/:id/productos  (público: solo activos)
 export const listPublic = async (req, res) => {
@@ -90,13 +111,17 @@ export const adminCreate = async (req, res) => {
         data.tipo = data.tipo ?? 'producto';
         data.precio = data.precio ?? 0;
         if (!isStaff(req)) {
-            const limite = await limiteProductos(sucursal.empresa_id);
-            if (limite !== null) {
-                const total = await prisma.productos_servicios.count({ where: { sucursal_id: sucursal.id, activo: true } });
-                if (total >= limite) {
-                    return res.status(403).json({
-                        error: `Límite de productos y servicios alcanzado (${total} de ${limite}). Actualiza tu plan para crear más.`
-                    });
+            const usuario = await prisma.usuarios.findUnique({ where: { id: req.user.id }, select: { cedula: true } });
+            const cedula = usuario?.cedula ?? '';
+            if (cedula) {
+                const limite = await limiteProductosPorCedula(cedula);
+                if (limite !== null) {
+                    const total = await prisma.productos_servicios.count({ where: { sucursal_id: sucursal.id, activo: true } });
+                    if (total >= limite) {
+                        return res.status(403).json({
+                            error: `Limite de productos y servicios alcanzado (${total} de ${limite}). Actualiza tu plan para crear mas.`
+                        });
+                    }
                 }
             }
         }

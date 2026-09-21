@@ -1,7 +1,8 @@
 import { prisma } from '../services/prisma.js';
 import { generarQRToken, verificarQRToken, generarQRReserva as genQRReserva, verificarQRReserva as verQRReserva } from '../services/qr.service.js';
+import { notificarUsuario } from '../services/socket.service.js';
 // Verificar que el usuario (dueño o empleado) tiene acceso a la sucursal
-const verificarAccesoSucursal = async (userId, sucursalId) => {
+export const verificarAccesoSucursal = async (userId, sucursalId) => {
     const sucursal = await prisma.sucursales.findUnique({ where: { id: sucursalId }, select: { empresa_id: true } });
     if (!sucursal)
         return false;
@@ -169,7 +170,7 @@ export const confirmarCanje = async (req, res) => {
             return res.status(400).json({ error: 'canje_id requerido' });
         const cuponUsuario = await prisma.cupones_usuario.findUnique({
             where: { id: canje_id },
-            include: { cupones: { include: { sucursales: { select: { id: true } } } } }
+            include: { cupones: { include: { sucursales: { select: { id: true, nombre: true } } } } }
         });
         if (!cuponUsuario)
             return res.status(404).json({ error: 'Canje no encontrado' });
@@ -192,6 +193,19 @@ export const confirmarCanje = async (req, res) => {
             })
         ]);
         res.json({ message: 'Canje confirmado correctamente' });
+        // Notificar al cliente por WebSocket
+        const tituloCupon = cuponUsuario.cupones.titulo || 'Cupón';
+        const sucursalNombre = cuponUsuario.cupones.sucursales.nombre || '';
+        const notif = await prisma.notificaciones.create({
+            data: {
+                usuario_id: cuponUsuario.usuario_id,
+                tipo: 'qr_cupon',
+                titulo: 'Cupón canjeado',
+                mensaje: `Tu cupón "${tituloCupon}" fue canjeado en ${sucursalNombre}`,
+                enlace: '/mis-cupones',
+            }
+        });
+        notificarUsuario(cuponUsuario.usuario_id, { tipo: 'qr_cupon', notificacion: notif });
     }
     catch (error) {
         console.error('Error confirmando canje:', error);
@@ -344,6 +358,7 @@ export const verificarQRReservaCtrl = async (req, res) => {
                 fecha: reserva.fecha_reserva,
                 hora: reserva.hora_inicio,
                 estado: reserva.estado,
+                platos: reserva.platos || null,
             };
         }
         else if (rtipo === 'habitacion') {
@@ -414,6 +429,7 @@ export const confirmarLlegada = async (req, res) => {
                 fecha: reserva.fecha_reserva,
                 hora: reserva.hora_inicio,
                 observaciones: reserva.observaciones,
+                platos: reserva.platos || null,
                 estado: 'completada',
             };
         }
@@ -487,6 +503,21 @@ export const confirmarLlegada = async (req, res) => {
             return res.status(400).json({ error: 'Tipo inválido' });
         }
         res.json({ message: 'Llegada confirmada. Reserva completada.', cliente, reserva: detalle });
+        // Notificar al cliente por WebSocket
+        if (reserva.usuario_id) {
+            const sucursalNombre = detalle.sucursal || '';
+            const tipoReserva = tipo === 'mesa' ? 'reserva de mesa' : tipo === 'habitacion' ? 'reserva de habitación' : 'reserva de visita';
+            const notif = await prisma.notificaciones.create({
+                data: {
+                    usuario_id: reserva.usuario_id,
+                    tipo: 'qr_reserva',
+                    titulo: 'Reserva confirmada',
+                    mensaje: `Tu ${tipoReserva} en ${sucursalNombre} fue confirmada. ¡Bienvenido!`,
+                    enlace: '/mis-reservas',
+                }
+            });
+            notificarUsuario(reserva.usuario_id, { tipo: 'qr_reserva', notificacion: notif });
+        }
     }
     catch (error) {
         console.error('Error confirmando llegada:', error);

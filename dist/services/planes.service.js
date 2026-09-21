@@ -10,9 +10,26 @@ export const suscripcionActiva = async (empresaId) => {
         include: { planes: true }
     });
 };
+// Suscripción activa por cédula del usuario (vale para todas sus empresas)
+export const suscripcionActivaPorCedula = async (cedula) => {
+    const hoy = new Date();
+    return prisma.suscripciones.findFirst({
+        where: { cedula, estado: 'activa', fecha_fin: { gte: hoy } },
+        orderBy: { fecha_fin: 'desc' },
+        include: { planes: true }
+    });
+};
 // Límite de sucursales de una empresa (null = ilimitado). Sin suscripción activa => plan Gratis (1)
 export const limiteSucursales = async (empresaId) => {
     const sub = await suscripcionActiva(empresaId);
+    const cantidad = sub?.planes?.cantidad_sucursales ?? 1;
+    if (cantidad === null || cantidad >= 999999)
+        return null;
+    return cantidad;
+};
+// Límite de sucursales por cédula (aplica a todas las empresas del usuario)
+export const limiteSucursalesPorCedula = async (cedula) => {
+    const sub = await suscripcionActivaPorCedula(cedula);
     const cantidad = sub?.planes?.cantidad_sucursales ?? 1;
     if (cantidad === null || cantidad >= 999999)
         return null;
@@ -26,14 +43,54 @@ export const limiteProductos = async (empresaId) => {
         return null;
     return cantidad;
 };
+// Límite de productos por cédula
+export const limiteProductosPorCedula = async (cedula) => {
+    const sub = await suscripcionActivaPorCedula(cedula);
+    const cantidad = sub?.planes?.cantidad_productos ?? 5;
+    if (cantidad === null || cantidad >= 999999)
+        return null;
+    return cantidad;
+};
 // ¿El plan de la empresa permite crear cupones? Sin suscripción activa => plan Gratis (no)
 export const permiteCupones = async (empresaId) => {
     const sub = await suscripcionActiva(empresaId);
     return sub?.planes?.permite_cupones === true;
 };
+// ¿La suscripción por cédula permite cupones?
+export const permiteCuponesPorCedula = async (cedula) => {
+    const sub = await suscripcionActivaPorCedula(cedula);
+    return sub?.planes?.permite_cupones === true;
+};
+// ¿La suscripción por cédula permite cartillas?
+export const permiteCartillasPorCedula = async (cedula) => {
+    const sub = await suscripcionActivaPorCedula(cedula);
+    return sub?.planes?.permite_cartillas === true;
+};
 // ¿El plan de la empresa permite reservas? Sin suscripción activa => plan Gratis (no)
 export const permiteReservas = async (empresaId) => {
     const sub = await suscripcionActiva(empresaId);
+    return sub?.planes?.permite_reservas === true;
+};
+// ¿La suscripción por cédula permite reservas?
+export const permiteReservasPorCedula = async (cedula) => {
+    const sub = await suscripcionActivaPorCedula(cedula);
+    return sub?.planes?.permite_reservas === true;
+};
+// ¿La empresa tiene reservas habilitadas por su plan? (busca por cédula del dueño)
+export const empresaTieneReservas = async (empresaId) => {
+    const hoy = new Date();
+    // Buscar dueño de la empresa
+    const link = await prisma.usuario_empresas.findFirst({
+        where: { empresa_id: empresaId },
+        select: { usuarios: { select: { cedula: true } } }
+    });
+    const cedula = link?.usuarios?.cedula;
+    if (!cedula)
+        return false;
+    const sub = await prisma.suscripciones.findFirst({
+        where: { cedula, estado: 'activa', fecha_fin: { gte: hoy } },
+        include: { planes: true }
+    });
     return sub?.planes?.permite_reservas === true;
 };
 // ¿El dueño tiene una suscripción activa en alguna de sus empresas?

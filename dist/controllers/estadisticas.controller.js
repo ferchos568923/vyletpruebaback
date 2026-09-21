@@ -1,5 +1,5 @@
 import { prisma } from '../services/prisma.js';
-// GET /api/estadisticas/mias?meses=12&inicio=2025-01-01&fin=2025-12-31&empresa_id=5
+// GET /api/estadisticas/mias?meses=12&inicio=2025-01-01&fin=2025-12-31&empresa_id=5&sucursal_id=7
 export const misEstadisticas = async (req, res) => {
     try {
         const userId = req.user.id;
@@ -8,6 +8,7 @@ export const misEstadisticas = async (req, res) => {
         const inicioQuery = req.query.inicio;
         const finQuery = req.query.fin;
         const empresaIdFilter = req.query.empresa_id ? Number(req.query.empresa_id) : null;
+        const sucursalIdFilter = req.query.sucursal_id ? Number(req.query.sucursal_id) : null;
         const hoy = new Date();
         const fechaInicio = inicioQuery
             ? new Date(inicioQuery)
@@ -50,6 +51,14 @@ export const misEstadisticas = async (req, res) => {
             where: { empresa_id: { in: empresaIds }, activo: true },
             select: { id: true, nombre: true, empresa_id: true }
         });
+        // Filtro por sucursal individual (validar pertenencia)
+        if (sucursalIdFilter) {
+            const una = sucursales.find((s) => s.id === sucursalIdFilter);
+            if (!una) {
+                return res.status(403).json({ error: 'No tienes acceso a esta sucursal' });
+            }
+            return misEstadisticasSucursal(req, res, una, fechaInicio, fechaFin);
+        }
         const sucIds = sucursales.map((s) => s.id);
         if (sucIds.length === 0) {
             return res.json({ premium: true, empresas, resumen: null, mensual: [], sucursales: [], negocios: [] });
@@ -172,6 +181,62 @@ export const misEstadisticas = async (req, res) => {
     }
     catch (error) {
         console.error('Error obteniendo estadísticas:', error);
+        res.status(500).json({ error: 'Error al obtener estadísticas' });
+    }
+};
+// Estadísticas de una sola sucursal (llamado desde misEstadisticas con ?sucursal_id=)
+const misEstadisticasSucursal = async (_req, res, suc, fechaInicio, fechaFin) => {
+    try {
+        const id = suc.id;
+        const [totalVisitas, totalFavoritos, totalResenas, promedioCalificacion, reservasPorEstado, reservasVisitaPorEstado, habitacionesReservadas, cuponesCanjeados,] = await Promise.all([
+            prisma.visitas_sucursal.count({ where: { sucursal_id: id, fecha_visita: { gte: fechaInicio, lte: fechaFin } } }),
+            prisma.favoritos.count({ where: { sucursal_id: id, fecha_creacion: { gte: fechaInicio, lte: fechaFin } } }),
+            prisma.resenas.count({ where: { sucursal_id: id, fecha_creacion: { gte: fechaInicio, lte: fechaFin } } }),
+            prisma.resenas.aggregate({ where: { sucursal_id: id }, _avg: { calificacion: true } }),
+            prisma.reservas.groupBy({ by: ['estado'], where: { sucursal_id: id, fecha_creacion: { gte: fechaInicio, lte: fechaFin } }, _count: { id: true } }),
+            prisma.reservas_visita.groupBy({ by: ['estado'], where: { sucursal_id: id, fecha_creacion: { gte: fechaInicio, lte: fechaFin } }, _count: { id: true } }),
+            prisma.reservas_habitacion.count({ where: { habitaciones: { sucursal_id: id }, fecha_entrada: { gte: fechaInicio, lte: fechaFin } } }),
+            prisma.cupones_usuario.count({ where: { cupones: { sucursal_id: id }, fecha_uso: { gte: fechaInicio, lte: fechaFin } } }),
+        ]);
+        const reservasConfirmadas = reservasPorEstado.find((r) => r.estado === 'confirmada')?._count.id ?? 0;
+        const reservasPendientes = reservasPorEstado.find((r) => r.estado === 'pendiente')?._count.id ?? 0;
+        const reservasCanceladas = reservasPorEstado.find((r) => r.estado === 'cancelada')?._count.id ?? 0;
+        const reservasCompletadas = reservasPorEstado.find((r) => r.estado === 'completada')?._count.id ?? 0;
+        const totalReservas = reservasConfirmadas + reservasPendientes + reservasCanceladas + reservasCompletadas;
+        const mensual = [];
+        const cursor = new Date(fechaInicio.getFullYear(), fechaInicio.getMonth(), 1);
+        const fin = new Date(fechaFin.getFullYear(), fechaFin.getMonth(), 1);
+        while (cursor <= fin) {
+            const mi = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+            const mf = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59);
+            const label = mi.toLocaleDateString('es-EC', { year: 'numeric', month: 'short' });
+            const [vis, fav, res, hab, cup, resRes] = await Promise.all([
+                prisma.visitas_sucursal.count({ where: { sucursal_id: id, fecha_visita: { gte: mi, lte: mf } } }),
+                prisma.favoritos.count({ where: { sucursal_id: id, fecha_creacion: { gte: mi, lte: mf } } }),
+                prisma.resenas.count({ where: { sucursal_id: id, fecha_creacion: { gte: mi, lte: mf } } }),
+                prisma.reservas_habitacion.count({ where: { habitaciones: { sucursal_id: id }, fecha_entrada: { gte: mi, lte: mf } } }),
+                prisma.cupones_usuario.count({ where: { cupones: { sucursal_id: id }, fecha_uso: { gte: mi, lte: mf } } }),
+                prisma.reservas.count({ where: { sucursal_id: id, fecha_creacion: { gte: mi, lte: mf } } }),
+            ]);
+            mensual.push({ mes: label, visitas: vis, favoritos: fav, resenas: res, reservas: resRes, habitaciones: hab, cupones: cup });
+            cursor.setMonth(cursor.getMonth() + 1);
+        }
+        res.json({
+            premium: true,
+            sucursal: { id: suc.id, nombre: suc.nombre },
+            rango: { inicio: fechaInicio.toISOString(), fin: fechaFin.toISOString() },
+            resumen: {
+                totalVisitas, totalFavoritos, totalResenas,
+                calificacionPromedio: promedioCalificacion._avg.calificacion ?? 0,
+                totalReservas, reservasConfirmadas, reservasPendientes, reservasCompletadas, reservasCanceladas,
+                visitasReserva: reservasVisitaPorEstado.reduce((a, r) => a + r._count.id, 0),
+                habitacionesReservadas, cuponesCanjeados,
+            },
+            mensual,
+        });
+    }
+    catch (error) {
+        console.error('Error obteniendo estadísticas de sucursal:', error);
         res.status(500).json({ error: 'Error al obtener estadísticas' });
     }
 };

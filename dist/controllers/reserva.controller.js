@@ -1,6 +1,7 @@
 import { prisma } from '../services/prisma.js';
-import { canGestionarEmpresaConPermiso, canGestionarSucursal, sucursalesAsignadasEmpleado } from '../middlewares/auth.js';
-import { permiteReservas } from '../services/planes.service.js';
+import { canGestionarEmpresaConPermiso, canGestionarSucursal, isStaff, sucursalesAsignadasEmpleado } from '../middlewares/auth.js';
+import { permiteReservasPorCedula } from '../services/planes.service.js';
+import { crearPedidoDesdeReserva } from './pedido.controller.js';
 const usuarioSelect = {
     id: true,
     nombres: true,
@@ -77,6 +78,7 @@ const crearReservas = async (data) => {
         hora_inicio: data.hora ? timeToDate(data.hora) : null,
         cantidad_personas: data.cantidadPersonas ? Number(data.cantidadPersonas) : 1,
         observaciones: data.observaciones || null,
+        platos: data.platos || null,
         estado: 'pendiente',
         usuario_id: data.usuarioId ?? null,
         cliente_nombre: data.cliente?.nombre || null,
@@ -97,10 +99,12 @@ export const crearReserva = async (req, res) => {
         const sucursal = await prisma.sucursales.findFirst({ where: { id: sucursalId, activo: true } });
         if (!sucursal)
             return res.status(404).json({ error: 'Sucursal no encontrada' });
-        if (!(await permiteReservas(sucursal.empresa_id))) {
+        const usuarioRes = await prisma.usuarios.findUnique({ where: { id: req.user.id }, select: { cedula: true } });
+        const cedulaRes = usuarioRes?.cedula ?? '';
+        if (cedulaRes && !(await permiteReservasPorCedula(cedulaRes))) {
             return res.status(403).json({ error: 'Esta empresa no ofrece reservas. Disponible solo en el plan Premium o superior.' });
         }
-        const { fecha_reserva, hora_inicio, mesa_id, mesa_ids, cantidades, cantidad_personas, observaciones } = req.body;
+        const { fecha_reserva, hora_inicio, mesa_id, mesa_ids, cantidades, cantidad_personas, observaciones, platos } = req.body;
         if (!fecha_reserva) {
             return res.status(400).json({ error: 'fecha_reserva es requerida' });
         }
@@ -126,6 +130,7 @@ export const crearReserva = async (req, res) => {
             cantidades: cants,
             cantidadPersonas: cantidad_personas,
             observaciones,
+            platos,
             usuarioId: req.user.id
         });
         res.status(201).json({ reservas: creadas.map(serializar) });
@@ -149,11 +154,15 @@ export const crearReservaManual = async (req, res) => {
             return res.status(403).json({ error: 'No puedes registrar reservas en esta sucursal' });
         }
         if (!sucursal.activo)
-            return res.status(400).json({ error: 'La sucursal está inactiva' });
-        if (!(await permiteReservas(sucursal.empresa_id))) {
-            return res.status(403).json({ error: 'Las reservas solo están disponibles en el plan Premium o superior. Actualiza tu plan.' });
+            return res.status(400).json({ error: 'La sucursal esta inactiva' });
+        if (!isStaff(req)) {
+            const usuarioManual = await prisma.usuarios.findUnique({ where: { id: req.user.id }, select: { cedula: true } });
+            const cedulaManual = usuarioManual?.cedula ?? '';
+            if (cedulaManual && !(await permiteReservasPorCedula(cedulaManual))) {
+                return res.status(403).json({ error: 'Las reservas solo estan disponibles en el plan Premium o superior. Actualiza tu plan.' });
+            }
         }
-        const { fecha_reserva, hora_inicio, mesa_id, mesa_ids, cantidades, cantidad_personas, observaciones, cliente_nombre, cliente_telefono, cliente_correo } = req.body;
+        const { fecha_reserva, hora_inicio, mesa_id, mesa_ids, cantidades, cantidad_personas, observaciones, platos, cliente_nombre, cliente_telefono, cliente_correo } = req.body;
         if (!fecha_reserva) {
             return res.status(400).json({ error: 'fecha_reserva es requerida' });
         }
@@ -179,6 +188,7 @@ export const crearReservaManual = async (req, res) => {
             cantidades: cants,
             cantidadPersonas: cantidad_personas,
             observaciones,
+            platos,
             usuarioId: null,
             cliente: { nombre: cliente_nombre, telefono: cliente_telefono, correo: cliente_correo }
         });
@@ -261,6 +271,10 @@ export const actualizarEstadoReserva = async (req, res) => {
         }
         const actualizada = await prisma.reservas.update({ where: { id: reservaId }, data: { estado } });
         res.json(actualizada);
+        // Al confirmar, los platos de la reserva se van a Pedidos como pedido vinculado
+        if (estado === 'confirmada') {
+            crearPedidoDesdeReserva(reservaId).catch((e) => console.error('Error auto-pedido:', e));
+        }
     }
     catch (error) {
         console.error('Error actualizando reserva:', error);
@@ -319,6 +333,10 @@ export const actualizarEstadoReservaSucursal = async (req, res) => {
             return res.status(404).json({ error: 'Reserva no encontrada' });
         const actualizada = await prisma.reservas.update({ where: { id: reservaId }, data: { estado } });
         res.json(actualizada);
+        // Al confirmar, los platos de la reserva se van a Pedidos como pedido vinculado
+        if (estado === 'confirmada') {
+            crearPedidoDesdeReserva(reservaId).catch((e) => console.error('Error auto-pedido:', e));
+        }
     }
     catch (error) {
         console.error('Error actualizando reserva:', error);

@@ -1,6 +1,6 @@
 import { prisma } from '../services/prisma.js';
 import { canGestionarSucursal } from '../middlewares/auth.js';
-import { permiteReservas } from '../services/planes.service.js';
+import { permiteReservasPorCedula } from '../services/planes.service.js';
 const estadosValidos = ['pendiente', 'confirmada', 'cancelada', 'completada'];
 const estadosOcupan = ['pendiente', 'confirmada'];
 const horaStr = (d) => {
@@ -45,8 +45,10 @@ export const crearReservaVisita = async (req, res) => {
         const sucursal = await prisma.sucursales.findFirst({ where: { id: sucursalId, activo: true } });
         if (!sucursal)
             return res.status(404).json({ error: 'Sucursal no encontrada' });
-        if (!(await permiteReservas(sucursal.empresa_id))) {
-            return res.status(403).json({ error: 'Las reservas solo están disponibles en el plan Premium o superior. Actualiza tu plan.' });
+        const usuarioVis = await prisma.usuarios.findUnique({ where: { id: req.user.id }, select: { cedula: true } });
+        const cedulaVis = usuarioVis?.cedula ?? '';
+        if (cedulaVis && !(await permiteReservasPorCedula(cedulaVis))) {
+            return res.status(403).json({ error: 'Las reservas solo estan disponibles en el plan Premium o superior. Actualiza tu plan.' });
         }
         const { fecha_visita, hora_visita, cantidad_adultos, cantidad_ninos, observaciones } = req.body;
         if (!fecha_visita) {

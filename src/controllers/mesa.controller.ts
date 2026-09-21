@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
+import { randomBytes } from 'crypto';
 import { prisma } from '../services/prisma.js';
+
+const generarTokenMesa = (): string => randomBytes(16).toString('hex');
 
 const estadosOcupan = ['pendiente', 'confirmada'];
 
@@ -108,7 +111,8 @@ export const crearMesa = async (req: Request, res: Response) => {
         nombre: String(nombre).trim(),
         puestos: puestosNum,
         cantidad: cantidadNum,
-        foto: foto != null ? String(foto) : null
+        foto: foto != null ? String(foto) : null,
+        qr_token: generarTokenMesa()
       }
     });
     res.status(201).json(mesa);
@@ -166,5 +170,61 @@ export const eliminarMesa = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error eliminando mesa:', error);
     res.status(500).json({ error: 'Error al eliminar la mesa' });
+  }
+};
+
+// GET /api/mesa/:token  (público) - resuelve el QR de una mesa: sucursal + mesa
+export const resolverMesaPorToken = async (req: Request, res: Response) => {
+  try {
+    const token = String(req.params.token);
+    const mesa = await prisma.mesas.findUnique({
+      where: { qr_token: token },
+      include: {
+        sucursales: {
+          select: {
+            id: true, nombre: true, direccion: true, imagen_principal: true, telefono: true, whatsapp: true, activo: true,
+            empresas: { select: { nombre: true, logo: true } }
+          }
+        }
+      }
+    });
+    if (!mesa || !mesa.activa || !mesa.sucursales?.activo) {
+      return res.status(404).json({ error: 'Mesa no encontrada' });
+    }
+    res.json({
+      mesa: { id: mesa.id, nombre: mesa.nombre, puestos: mesa.puestos },
+      sucursal: {
+        id: mesa.sucursales.id,
+        nombre: mesa.sucursales.nombre,
+        direccion: mesa.sucursales.direccion,
+        imagen: mesa.sucursales.imagen_principal,
+        telefono: mesa.sucursales.telefono,
+        whatsapp: mesa.sucursales.whatsapp,
+        empresa: mesa.sucursales.empresas?.nombre ?? null,
+        logo: mesa.sucursales.empresas?.logo ?? null
+      }
+    });
+  } catch (error) {
+    console.error('Error resolviendo mesa:', error);
+    res.status(500).json({ error: 'Error al resolver mesa' });
+  }
+};
+
+// POST /api/sucursales/:id/mesas/:mesaId/regenerar-qr  (dueño/staff/empleado)
+export const regenerarQRMesa = async (req: Request, res: Response) => {
+  try {
+    const sucursalId = Number(req.params.id);
+    const mesaId = Number(req.params.mesaId);
+    const existente = await prisma.mesas.findFirst({ where: { id: mesaId, sucursal_id: sucursalId } });
+    if (!existente) return res.status(404).json({ error: 'Mesa no encontrada' });
+
+    const mesa = await prisma.mesas.update({
+      where: { id: mesaId },
+      data: { qr_token: generarTokenMesa() }
+    });
+    res.json(mesa);
+  } catch (error) {
+    console.error('Error regenerando QR de mesa:', error);
+    res.status(500).json({ error: 'Error al regenerar QR' });
   }
 };

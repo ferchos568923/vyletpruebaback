@@ -76,6 +76,9 @@ export const ModelName = {
     configuraciones: 'configuraciones',
     cupones: 'cupones',
     cupones_usuario: 'cupones_usuario',
+    cartilla_config: 'cartilla_config',
+    cartilla_cliente: 'cartilla_cliente',
+    cartilla_sello: 'cartilla_sello',
     disponibilidad_sucursal: 'disponibilidad_sucursal',
     empresas: 'empresas',
     etiquetas: 'etiquetas',
@@ -89,6 +92,8 @@ export const ModelName = {
     mesas: 'mesas',
     notificaciones: 'notificaciones',
     pagos: 'pagos',
+    pedido_detalle: 'pedido_detalle',
+    pedidos: 'pedidos',
     permisos: 'permisos',
     planes: 'planes',
     producto_etiquetas: 'producto_etiquetas',
@@ -113,6 +118,7 @@ export const ModelName = {
     sucursal_tipos_interes: 'sucursal_tipos_interes',
     sucursales: 'sucursales',
     reservas_visita: 'reservas_visita',
+    reservas_compartidas: 'reservas_compartidas',
     suscripciones: 'suscripciones',
     tipos_interes: 'tipos_interes',
     tokens_recuperacion: 'tokens_recuperacion',
@@ -132,7 +138,9 @@ export const ModelName = {
     permisos_empresa: 'permisos_empresa',
     publicidad_ubicaciones: 'publicidad_ubicaciones',
     ubicaciones_publicidad: 'ubicaciones_publicidad',
-    usuario_empresas: 'usuario_empresas'
+    usuario_empresas: 'usuario_empresas',
+    canchas: 'canchas',
+    reservas_cancha: 'reservas_cancha'
 };
 /**
  * Enums
@@ -176,6 +184,7 @@ export const Categorias_negocioScalarFieldEnum = {
     permite_reservas: 'permite_reservas',
     permite_habitaciones: 'permite_habitaciones',
     permite_mesas: 'permite_mesas',
+    permite_canchas: 'permite_canchas',
     activo: 'activo',
     fecha_creacion: 'fecha_creacion'
 };
@@ -250,6 +259,31 @@ export const Cupones_usuarioScalarFieldEnum = {
     estado: 'estado',
     fecha_uso: 'fecha_uso',
     fecha_canje: 'fecha_canje'
+};
+export const Cartilla_configScalarFieldEnum = {
+    id: 'id',
+    sucursal_id: 'sucursal_id',
+    titulo: 'titulo',
+    descripcion: 'descripcion',
+    sellos_requeridos: 'sellos_requeridos',
+    premio: 'premio',
+    activo: 'activo',
+    fecha_creacion: 'fecha_creacion'
+};
+export const Cartilla_clienteScalarFieldEnum = {
+    id: 'id',
+    config_id: 'config_id',
+    usuario_id: 'usuario_id',
+    sellos: 'sellos',
+    estado: 'estado',
+    fecha_completada: 'fecha_completada',
+    fecha_creacion: 'fecha_creacion'
+};
+export const Cartilla_selloScalarFieldEnum = {
+    id: 'id',
+    cartilla_id: 'cartilla_id',
+    empleado_id: 'empleado_id',
+    fecha: 'fecha'
 };
 export const Disponibilidad_sucursalScalarFieldEnum = {
     id: 'id',
@@ -360,13 +394,16 @@ export const MesasScalarFieldEnum = {
     cantidad: 'cantidad',
     foto: 'foto',
     activa: 'activa',
+    qr_token: 'qr_token',
     fecha_creacion: 'fecha_creacion'
 };
 export const NotificacionesScalarFieldEnum = {
     id: 'id',
     usuario_id: 'usuario_id',
+    tipo: 'tipo',
     titulo: 'titulo',
     mensaje: 'mensaje',
+    enlace: 'enlace',
     leido: 'leido',
     fecha_creacion: 'fecha_creacion'
 };
@@ -379,6 +416,30 @@ export const PagosScalarFieldEnum = {
     referencia_pago: 'referencia_pago',
     estado: 'estado',
     fecha_pago: 'fecha_pago'
+};
+export const Pedido_detalleScalarFieldEnum = {
+    id: 'id',
+    pedido_id: 'pedido_id',
+    producto_id: 'producto_id',
+    cantidad: 'cantidad',
+    precio_unitario: 'precio_unitario',
+    nota: 'nota',
+    estado: 'estado',
+    fecha_creacion: 'fecha_creacion'
+};
+export const PedidosScalarFieldEnum = {
+    id: 'id',
+    sucursal_id: 'sucursal_id',
+    mesa_id: 'mesa_id',
+    reserva_id: 'reserva_id',
+    usuario_id: 'usuario_id',
+    cliente_nombre: 'cliente_nombre',
+    cliente_telefono: 'cliente_telefono',
+    estado: 'estado',
+    total: 'total',
+    notas: 'notas',
+    fecha_creacion: 'fecha_creacion',
+    fecha_actualizacion: 'fecha_actualizacion'
 };
 export const PermisosScalarFieldEnum = {
     id: 'id',
@@ -397,6 +458,7 @@ export const PlanesScalarFieldEnum = {
     permite_destacados: 'permite_destacados',
     permite_cupones: 'permite_cupones',
     permite_reservas: 'permite_reservas',
+    permite_cartillas: 'permite_cartillas',
     dias_duracion: 'dias_duracion',
     destacado: 'destacado',
     activo: 'activo'
@@ -485,7 +547,8 @@ export const ReservasScalarFieldEnum = {
     fecha_creacion: 'fecha_creacion',
     cliente_nombre: 'cliente_nombre',
     cliente_telefono: 'cliente_telefono',
-    cliente_correo: 'cliente_correo'
+    cliente_correo: 'cliente_correo',
+    platos: 'platos'
 };
 export const Reservas_habitacionScalarFieldEnum = {
     id: 'id',
@@ -579,6 +642,10 @@ export const SucursalesScalarFieldEnum = {
     direccion: 'direccion',
     telefono: 'telefono',
     whatsapp: 'whatsapp',
+    facebook: 'facebook',
+    instagram: 'instagram',
+    tiktok: 'tiktok',
+    sitio_web: 'sitio_web',
     imagen_principal: 'imagen_principal',
     latitud: 'latitud',
     longitud: 'longitud',
@@ -606,9 +673,19 @@ export const Reservas_visitaScalarFieldEnum = {
     cliente_telefono: 'cliente_telefono',
     fecha_creacion: 'fecha_creacion'
 };
+export const Reservas_compartidasScalarFieldEnum = {
+    id: 'id',
+    reserva_id: 'reserva_id',
+    tipo_reserva: 'tipo_reserva',
+    compartido_por_usuario_id: 'compartido_por_usuario_id',
+    compartido_con_usuario_id: 'compartido_con_usuario_id',
+    estado: 'estado',
+    fecha_creacion: 'fecha_creacion'
+};
 export const SuscripcionesScalarFieldEnum = {
     id: 'id',
     empresa_id: 'empresa_id',
+    cedula: 'cedula',
     plan_id: 'plan_id',
     fecha_inicio: 'fecha_inicio',
     fecha_fin: 'fecha_fin',
@@ -747,6 +824,33 @@ export const Usuario_empresasScalarFieldEnum = {
     id: 'id',
     usuario_id: 'usuario_id',
     empresa_id: 'empresa_id',
+    fecha_creacion: 'fecha_creacion'
+};
+export const CanchasScalarFieldEnum = {
+    id: 'id',
+    sucursal_id: 'sucursal_id',
+    nombre: 'nombre',
+    capacidad: 'capacidad',
+    precio_hora: 'precio_hora',
+    tipo: 'tipo',
+    activa: 'activa',
+    fecha_creacion: 'fecha_creacion'
+};
+export const Reservas_canchaScalarFieldEnum = {
+    id: 'id',
+    cancha_id: 'cancha_id',
+    sucursal_id: 'sucursal_id',
+    usuario_id: 'usuario_id',
+    fecha_reserva: 'fecha_reserva',
+    hora_inicio: 'hora_inicio',
+    hora_fin: 'hora_fin',
+    duracion_horas: 'duracion_horas',
+    cantidad_jugadores: 'cantidad_jugadores',
+    observaciones: 'observaciones',
+    cliente_nombre: 'cliente_nombre',
+    cliente_telefono: 'cliente_telefono',
+    cliente_correo: 'cliente_correo',
+    estado: 'estado',
     fecha_creacion: 'fecha_creacion'
 };
 export const SortOrder = {

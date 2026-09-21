@@ -1,0 +1,16 @@
+import { Router } from 'express';
+import * as cartilla from '../controllers/cartilla.controller.js';
+import { authenticate } from '../middlewares/auth.js';
+const router = Router();
+router.get('/sucursales/:id/cartilla', cartilla.verConfig);
+router.get('/sucursales/:id/cartilla/admin', authenticate, cartilla.adminVer);
+router.post('/sucursales/:id/cartilla', authenticate, cartilla.adminGuardar);
+router.get('/sucursales/:id/cartilla/sellos', authenticate, cartilla.adminSellos);
+router.get('/sucursales/:id/cartilla/cartillas', authenticate, cartilla.adminCartillas);
+router.post('/sucursales/:id/cartilla/unirse', authenticate, cartilla.unirse);
+router.get('/mis-cartillas', authenticate, cartilla.misCartillas);
+router.post('/cartillas/:id/generar-qr', authenticate, cartilla.generarQR);
+router.post('/cartillas/verificar-qr', authenticate, cartilla.verificarQR);
+router.post('/cartillas/confirmar-sello', authenticate, cartilla.confirmarSello);
+router.patch('/cartillas/:id/entregar', authenticate, cartilla.entregarPremio);
+export default router;

@@ -29,3 +29,31 @@ export const verificarQRReserva = (token) => {
         return null;
     }
 };
+export const generarQRCartilla = (usuarioId, cartillaId) => {
+    return jwt.sign({ tipo: 'cartilla', uid: usuarioId, cid: cartillaId }, QR_SECRET, { expiresIn: QR_EXPIRY });
+};
+export const verificarQRCartilla = (token) => {
+    try {
+        const decoded = jwt.verify(token, QR_SECRET);
+        if (decoded.tipo !== 'cartilla')
+            return null;
+        return decoded;
+    }
+    catch {
+        return null;
+    }
+};
+export const generarQRPedido = (pedidoId) => {
+    return jwt.sign({ tipo: 'pedido', pid: pedidoId }, QR_SECRET, { expiresIn: QR_EXPIRY });
+};
+export const verificarQRPedido = (token) => {
+    try {
+        const decoded = jwt.verify(token, QR_SECRET);
+        if (decoded.tipo !== 'pedido')
+            return null;
+        return decoded;
+    }
+    catch {
+        return null;
+    }
+};

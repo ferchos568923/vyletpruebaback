@@ -1,0 +1,10 @@
+import { Router } from 'express';
+import * as canchaController from '../controllers/cancha.controller.js';
+import { authenticate } from '../middlewares/auth.js';
+const router = Router();
+router.get('/sucursales/:id/canchas', canchaController.listar);
+router.get('/sucursales/:id/canchas/todas', authenticate, canchaController.listarTodas);
+router.post('/sucursales/:id/canchas', authenticate, canchaController.crear);
+router.patch('/sucursales/:id/canchas/:canchaId', authenticate, canchaController.editar);
+router.delete('/sucursales/:id/canchas/:canchaId', authenticate, canchaController.eliminar);
+export default router;

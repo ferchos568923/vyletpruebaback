@@ -4,6 +4,7 @@ import { authenticate, requireSucursalAcceso } from '../middlewares/auth.js';
 
 const router = Router();
 
+router.get('/productos/:productoId', prod.getPublic);
 router.get('/sucursales/:id/productos', prod.listPublic);
 router.get('/sucursales/:id/productos/todos', authenticate, requireSucursalAcceso('sucursales:ver'), prod.adminList);
 router.post('/sucursales/:id/productos', authenticate, requireSucursalAcceso('sucursales:editar'), prod.adminCreate);

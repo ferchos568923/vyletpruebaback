@@ -18,7 +18,7 @@ export const listPlanes = async (_req: Request, res: Response) => {
 // POST /api/admin/planes  (configuraciones:editar)
 export const crearPlan = async (req: Request, res: Response) => {
   try {
-    const { nombre, descripcion, precio, cantidad_sucursales, cantidad_empresas, cantidad_productos, dias_duracion, destacado, activo, permite_publicidad, permite_destacados, permite_cupones, permite_reservas } = req.body ?? {};
+    const { nombre, descripcion, precio, cantidad_sucursales, cantidad_empresas, cantidad_productos, dias_duracion, destacado, activo, permite_publicidad, permite_destacados, permite_cupones, permite_reservas, permite_cartillas } = req.body ?? {};
     if (!nombre || nombre.trim() === '') return res.status(400).json({ error: 'nombre es requerido' });
     if (precio === undefined || isNaN(Number(precio)) || Number(precio) < 0) {
       return res.status(400).json({ error: 'precio debe ser un número mayor o igual a 0' });
@@ -37,7 +37,8 @@ export const crearPlan = async (req: Request, res: Response) => {
         permite_publicidad: permite_publicidad === true,
         permite_destacados: permite_destacados === true,
         permite_cupones: permite_cupones === true,
-        permite_reservas: permite_reservas === true
+        permite_reservas: permite_reservas === true,
+        permite_cartillas: permite_cartillas === true
       }
     });
     res.status(201).json(plan);
@@ -54,7 +55,7 @@ export const editarPlan = async (req: Request, res: Response) => {
     const existente = await prisma.planes.findUnique({ where: { id } });
     if (!existente) return res.status(404).json({ error: 'Plan no encontrado' });
 
-    const { nombre, descripcion, precio, cantidad_sucursales, cantidad_empresas, cantidad_productos, dias_duracion, destacado, activo, permite_publicidad, permite_destacados, permite_cupones, permite_reservas } = req.body ?? {};
+    const { nombre, descripcion, precio, cantidad_sucursales, cantidad_empresas, cantidad_productos, dias_duracion, destacado, activo, permite_publicidad, permite_destacados, permite_cupones, permite_reservas, permite_cartillas } = req.body ?? {};
     if (nombre !== undefined && String(nombre).trim() === '') {
       return res.status(400).json({ error: 'nombre no puede estar vacío' });
     }
@@ -77,6 +78,7 @@ export const editarPlan = async (req: Request, res: Response) => {
     if (permite_destacados !== undefined) data.permite_destacados = permite_destacados === true;
     if (permite_cupones !== undefined) data.permite_cupones = permite_cupones === true;
     if (permite_reservas !== undefined) data.permite_reservas = permite_reservas === true;
+    if (permite_cartillas !== undefined) data.permite_cartillas = permite_cartillas === true;
 
     const plan = await prisma.planes.update({ where: { id }, data });
     res.json(plan);
@@ -138,16 +140,71 @@ export const cambiarEstadoSuscripcion = async (req: Request, res: Response) => {
 
     const suscripcion = await prisma.$transaction(async (tx) => {
       if (estado === 'activa') {
-        // Al aprobar: activar la nueva y dejar inactivas las demás de la misma empresa
-        await tx.suscripciones.updateMany({
-          where: { empresa_id: existente.empresa_id, estado: 'activa', id: { not: id } },
-          data: { estado: 'inactiva' }
-        });
+        // Al aprobar: activar la nueva y dejar inactivas las demás de la misma cédula
+        if (existente.cedula) {
+          await tx.suscripciones.updateMany({
+            where: { cedula: existente.cedula, estado: 'activa', id: { not: id } },
+            data: { estado: 'inactiva' }
+          });
+        }
+        // También desactivar las de la misma empresa
+        if (existente.empresa_id) {
+          await tx.suscripciones.updateMany({
+            where: { empresa_id: existente.empresa_id, estado: 'activa', id: { not: id } },
+            data: { estado: 'inactiva' }
+          });
+        }
         await tx.pagos.updateMany({
           where: { suscripcion_id: id, estado: 'pendiente' },
           data: { estado: 'aprobado' }
         });
+
+        // Si el plan permite destacados, marcar destacado=true en todas las empresas del usuario
+        const plan = await tx.planes.findUnique({ where: { id: existente.plan_id } });
+        if (plan?.permite_destacados && existente.cedula) {
+          const usuarioEmpresas = await tx.usuario_empresas.findMany({
+            where: { usuarios: { cedula: existente.cedula } },
+            select: { empresa_id: true }
+          });
+          const empresaIds = usuarioEmpresas.map((ue) => ue.empresa_id);
+          if (empresaIds.length > 0) {
+            await tx.empresas.updateMany({
+              where: { id: { in: empresaIds } },
+              data: { destacado: true }
+            });
+          }
+        }
       }
+
+      // Si se cancela/desactiva la suscripción, quitar destacado si no hay otro plan activo que lo permita
+      if (['inactiva', 'cancelada'].includes(estado) && existente.cedula) {
+        const plan = await tx.planes.findUnique({ where: { id: existente.plan_id } });
+        if (plan?.permite_destacados) {
+          const usuarioEmpresas = await tx.usuario_empresas.findMany({
+            where: { usuarios: { cedula: existente.cedula } },
+            select: { empresa_id: true }
+          });
+          const empresaIds = usuarioEmpresas.map((ue) => ue.empresa_id);
+          if (empresaIds.length > 0) {
+            // Verificar si queda alguna otra suscripción activa que permita destacados
+            const otraActiva = await tx.suscripciones.findFirst({
+              where: {
+                cedula: existente.cedula,
+                estado: 'activa',
+                id: { not: id },
+                planes: { permite_destacados: true }
+              }
+            });
+            if (!otraActiva) {
+              await tx.empresas.updateMany({
+                where: { id: { in: empresaIds } },
+                data: { destacado: false }
+              });
+            }
+          }
+        }
+      }
+
       return tx.suscripciones.update({ where: { id }, data: { estado } });
     });
 
